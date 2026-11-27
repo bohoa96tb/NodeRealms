@@ -26,6 +26,8 @@ const BOSS_CHARGE_DURATION: float = 2.0
 const BOSS_SUMMON_TROOPS: float = 8.0
 const BOSS_SURGE_RATIO: float = 0.40
 
+enum TutorialStep { NONE, DRAG_DISPATCH, CREATURE_SKILL, PORTAL_WARP }
+
 @export var base_node_scene: PackedScene = preload("res://scenes/BaseNode.tscn")
 @export var army_group_scene: PackedScene = preload("res://scenes/ArmyGroup.tscn")
 
@@ -54,6 +56,10 @@ const BOSS_SURGE_RATIO: float = 0.40
 @onready var boss_gauge_label: Label = $HUD/HUDRoot/TopBar/TopMargin/TopVBox/StatusInfoRow/BossGaugeBox/BossGaugeLabel
 @onready var boss_gauge_bar: ProgressBar = $HUD/HUDRoot/TopBar/TopMargin/TopVBox/StatusInfoRow/BossGaugeBox/BossGaugeBar
 @onready var boss_banner_label: Label = $HUD/HUDRoot/BossBannerLabel
+@onready var tutorial_banner: PanelContainer = $HUD/HUDRoot/TutorialBanner
+@onready var tutorial_title_label: Label = $HUD/HUDRoot/TutorialBanner/TutorialMargin/TutorialRow/TutorialVBox/TutorialTitleLabel
+@onready var tutorial_body_label: Label = $HUD/HUDRoot/TutorialBanner/TutorialMargin/TutorialRow/TutorialVBox/TutorialBodyLabel
+@onready var tutorial_action_btn: Button = $HUD/HUDRoot/TutorialBanner/TutorialMargin/TutorialRow/TutorialActionBtn
 
 @onready var skill_bar: HBoxContainer = $HUD/HUDRoot/SkillBar
 @onready var skill_btn: Button = $HUD/HUDRoot/SkillBar/SkillBtn
@@ -108,6 +114,11 @@ var _is_mouse_dragging: bool = false
 var _game_ended: bool = false
 var _stats_refresh_timer: float = 0.0
 
+var _tutorial_step: TutorialStep = TutorialStep.NONE
+var _tutorial_has_portals: bool = false
+var _tutorial_used_skill: bool = false
+var _tutorial_tween: Tween = null
+
 var _style_btn_normal: StyleBoxFlat
 var _style_btn_active: StyleBoxFlat
 var _style_skill_ready: StyleBoxFlat
@@ -145,6 +156,10 @@ func _ready() -> void:
 		load_generated_map(initial_seed, 1, CampaignData.AIDifficulty.NORMAL)
 
 	_refresh_creature_hud()
+
+
+func _exit_tree() -> void:
+	_kill_tutorial_tween()
 
 
 func _process(delta: float) -> void:
@@ -257,10 +272,12 @@ func load_generated_map(
 	ai_diff: CampaignData.AIDifficulty = CampaignData.AIDifficulty.NORMAL
 ) -> void:
 	_cancel_drag()
+	_kill_tutorial_tween()
 	_game_ended = false
 	_stats_refresh_timer = 0.0
 	_match_elapsed_time = 0.0
 	_player_lost_base = false
+	_tutorial_used_skill = false
 	_current_ai_difficulty = ai_diff
 
 	_boss_node = null
@@ -296,6 +313,7 @@ func load_generated_map(
 	var map_data: Dictionary = _map_generator.generate_map(seed_value, tier, PLAY_AREA)
 	current_seed = int(map_data["seed"])
 	current_tier = int(map_data["tier"])
+	_tutorial_has_portals = not (map_data["portal_pairs"] as Array).is_empty()
 
 	var is_boss_stage: bool = (
 		(_is_campaign_mode and bool(_current_level_info.get("is_boss", false)))
@@ -345,6 +363,7 @@ func load_generated_map(
 	_update_stats_label()
 	_update_battle_readability_hud()
 	_refresh_creature_hud()
+	_init_match_tutorial()
 
 
 func spawn_army(from_node: BaseNode, to_node: BaseNode, ratio: float) -> void:
@@ -370,6 +389,7 @@ func spawn_army(from_node: BaseNode, to_node: BaseNode, ratio: float) -> void:
 			AudioManager.play_portal()
 		else:
 			AudioManager.play_send()
+		_on_player_army_dispatched(is_portal)
 
 	_update_stats_label()
 
@@ -761,6 +781,7 @@ func _are_all_nodes_captured_by_player() -> bool:
 func _show_end_screen(victory: bool) -> void:
 	_game_ended = true
 	_cancel_drag()
+	_hide_tutorial_banner()
 
 	if boss_banner_label:
 		boss_banner_label.visible = false
@@ -939,6 +960,9 @@ func _apply_safe_area_padding() -> void:
 	if boss_banner_label:
 		boss_banner_label.offset_top = final_bar_height + 4.0
 		boss_banner_label.offset_bottom = final_bar_height + 36.0
+	if tutorial_banner:
+		tutorial_banner.offset_top = final_bar_height + 4.0
+		tutorial_banner.offset_bottom = final_bar_height + 76.0
 	if bottom_margin:
 		bottom_margin.add_theme_constant_override("margin_bottom", final_bottom_margin)
 	if bottom_bar:
@@ -1081,36 +1105,45 @@ func _setup_hud_styles() -> void:
 func _connect_hud_signals() -> void:
 	for i in range(ratio_buttons.size()):
 		var btn: Button = ratio_buttons[i]
-		btn.pressed.connect(_on_ratio_button_pressed.bind(i))
+		var ratio_cb := _on_ratio_button_pressed.bind(i)
+		if not btn.pressed.is_connected(ratio_cb):
+			btn.pressed.connect(ratio_cb)
 
-	if next_level_btn:
+	if next_level_btn and not next_level_btn.pressed.is_connected(_on_next_level_pressed):
 		next_level_btn.pressed.connect(_on_next_level_pressed)
-	if restart_button:
+	if restart_button and not restart_button.pressed.is_connected(_on_restart_pressed):
 		restart_button.pressed.connect(_on_restart_pressed)
-	if campaign_btn:
+	if campaign_btn and not campaign_btn.pressed.is_connected(_on_back_to_campaign_pressed):
 		campaign_btn.pressed.connect(_on_back_to_campaign_pressed)
-	if next_map_btn:
+	if next_map_btn and not next_map_btn.pressed.is_connected(_on_next_map_pressed):
 		next_map_btn.pressed.connect(_on_next_map_pressed)
-	if tier_btn:
+	if tier_btn and not tier_btn.pressed.is_connected(_on_tier_button_pressed):
 		tier_btn.pressed.connect(_on_tier_button_pressed)
-	if back_btn:
+	if back_btn and not back_btn.pressed.is_connected(_on_back_to_campaign_pressed):
 		back_btn.pressed.connect(_on_back_to_campaign_pressed)
-	if sfx_btn:
+	if sfx_btn and not sfx_btn.pressed.is_connected(_on_sfx_pressed):
 		sfx_btn.pressed.connect(_on_sfx_pressed)
-	AudioManager.sfx_toggled.connect(_on_sfx_toggled)
-	if skill_btn:
+	if not AudioManager.sfx_toggled.is_connected(_on_sfx_toggled):
+		AudioManager.sfx_toggled.connect(_on_sfx_toggled)
+	if skill_btn and not skill_btn.pressed.is_connected(_on_skill_button_pressed):
 		skill_btn.pressed.connect(_on_skill_button_pressed)
-	if switch_creature_btn:
+	if switch_creature_btn and not switch_creature_btn.pressed.is_connected(_on_switch_creature_pressed):
 		switch_creature_btn.pressed.connect(_on_switch_creature_pressed)
+	if tutorial_action_btn and not tutorial_action_btn.pressed.is_connected(_on_tutorial_action_pressed):
+		tutorial_action_btn.pressed.connect(_on_tutorial_action_pressed)
 
 
 func _connect_creature_signals() -> void:
 	if creature_manager == null:
 		return
-	creature_manager.skill_activated.connect(_on_skill_activated)
-	creature_manager.skill_ended.connect(_on_skill_ended)
-	creature_manager.cooldown_updated.connect(_on_cooldown_updated)
-	creature_manager.creature_changed.connect(_on_creature_changed)
+	if not creature_manager.skill_activated.is_connected(_on_skill_activated):
+		creature_manager.skill_activated.connect(_on_skill_activated)
+	if not creature_manager.skill_ended.is_connected(_on_skill_ended):
+		creature_manager.skill_ended.connect(_on_skill_ended)
+	if not creature_manager.cooldown_updated.is_connected(_on_cooldown_updated):
+		creature_manager.cooldown_updated.connect(_on_cooldown_updated)
+	if not creature_manager.creature_changed.is_connected(_on_creature_changed):
+		creature_manager.creature_changed.connect(_on_creature_changed)
 
 
 func _refresh_sfx_button() -> void:
@@ -1202,9 +1235,11 @@ func _on_switch_creature_pressed() -> void:
 
 func _on_skill_activated(_creature: Dictionary) -> void:
 	_skill_blink_time = 0.0
+	_tutorial_used_skill = true
 	AudioManager.play_skill()
 	_update_stats_label()
 	_refresh_creature_hud()
+	_on_player_skill_used()
 
 
 func _on_skill_ended(_creature: Dictionary) -> void:
@@ -1281,4 +1316,107 @@ func _on_restart_pressed() -> void:
 
 
 func _on_back_to_campaign_pressed() -> void:
+	_kill_tutorial_tween()
 	get_tree().change_scene_to_file(CAMPAIGN_SCENE_PATH)
+
+
+func _init_match_tutorial() -> void:
+	if _game_ended:
+		_hide_tutorial_banner()
+		return
+	if not SaveManager.is_tutorial_completed():
+		_set_tutorial_step(TutorialStep.DRAG_DISPATCH)
+	elif _tutorial_has_portals and not SaveManager.is_portal_hint_seen():
+		_set_tutorial_step(TutorialStep.PORTAL_WARP)
+	else:
+		_hide_tutorial_banner()
+
+
+func _on_player_army_dispatched(is_portal: bool) -> void:
+	if _game_ended:
+		return
+	if _tutorial_step == TutorialStep.DRAG_DISPATCH:
+		if _tutorial_used_skill:
+			SaveManager.set_tutorial_completed(true)
+			_advance_to_portal_or_finish()
+		else:
+			_set_tutorial_step(TutorialStep.CREATURE_SKILL)
+	elif _tutorial_step == TutorialStep.PORTAL_WARP and is_portal:
+		SaveManager.set_portal_hint_seen(true)
+		_hide_tutorial_banner()
+
+
+func _on_player_skill_used() -> void:
+	if _game_ended:
+		return
+	if _tutorial_step == TutorialStep.CREATURE_SKILL:
+		SaveManager.set_tutorial_completed(true)
+		_advance_to_portal_or_finish()
+
+
+func _advance_to_portal_or_finish() -> void:
+	if _tutorial_has_portals and not SaveManager.is_portal_hint_seen():
+		_set_tutorial_step(TutorialStep.PORTAL_WARP)
+	else:
+		_hide_tutorial_banner()
+
+
+func _on_tutorial_action_pressed() -> void:
+	if _tutorial_step == TutorialStep.PORTAL_WARP:
+		SaveManager.set_portal_hint_seen(true)
+	else:
+		SaveManager.complete_all_tutorials()
+	_hide_tutorial_banner()
+
+
+func _set_tutorial_step(step: TutorialStep) -> void:
+	_tutorial_step = step
+	if step == TutorialStep.NONE or _game_ended:
+		_hide_tutorial_banner()
+		return
+
+	if tutorial_banner == null:
+		return
+
+	match step:
+		TutorialStep.DRAG_DISPATCH:
+			if tutorial_title_label:
+				tutorial_title_label.text = "STEP 1/2: SEND TROOPS"
+			if tutorial_body_label:
+				tutorial_body_label.text = "Drag from a blue base to capture neutral or enemy nodes."
+			if tutorial_action_btn:
+				tutorial_action_btn.text = "Skip"
+		TutorialStep.CREATURE_SKILL:
+			if tutorial_title_label:
+				tutorial_title_label.text = "STEP 2/2: CREATURE SKILL"
+			if tutorial_body_label:
+				tutorial_body_label.text = "Tap your Creature Skill button below to boost your army!"
+			if tutorial_action_btn:
+				tutorial_action_btn.text = "Skip"
+		TutorialStep.PORTAL_WARP:
+			if tutorial_title_label:
+				tutorial_title_label.text = "TIP: PORTAL WARP"
+			if tutorial_body_label:
+				tutorial_body_label.text = "Drag across dashed cyan portals to send troops at 1.8x speed!"
+			if tutorial_action_btn:
+				tutorial_action_btn.text = "Got it"
+
+	_kill_tutorial_tween()
+	tutorial_banner.modulate.a = 0.0
+	tutorial_banner.visible = true
+	_tutorial_tween = create_tween()
+	_tutorial_tween.tween_property(tutorial_banner, "modulate:a", 1.0, 0.18)
+
+
+func _hide_tutorial_banner() -> void:
+	_tutorial_step = TutorialStep.NONE
+	_kill_tutorial_tween()
+	if tutorial_banner:
+		tutorial_banner.visible = false
+		tutorial_banner.modulate.a = 1.0
+
+
+func _kill_tutorial_tween() -> void:
+	if _tutorial_tween != null and _tutorial_tween.is_valid():
+		_tutorial_tween.kill()
+	_tutorial_tween = null

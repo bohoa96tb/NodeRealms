@@ -95,6 +95,38 @@ func set_sfx_enabled(enabled: bool) -> void:
 	save_game()
 
 
+func is_tutorial_completed() -> bool:
+	var settings: Dictionary = data.get("settings", {})
+	return bool(settings.get("tutorial_completed", false))
+
+
+func set_tutorial_completed(completed: bool) -> void:
+	if not (data.get("settings") is Dictionary):
+		data["settings"] = {}
+	data["settings"]["tutorial_completed"] = completed
+	save_game()
+
+
+func is_portal_hint_seen() -> bool:
+	var settings: Dictionary = data.get("settings", {})
+	return bool(settings.get("portal_hint_seen", false))
+
+
+func set_portal_hint_seen(seen: bool) -> void:
+	if not (data.get("settings") is Dictionary):
+		data["settings"] = {}
+	data["settings"]["portal_hint_seen"] = seen
+	save_game()
+
+
+func complete_all_tutorials() -> void:
+	if not (data.get("settings") is Dictionary):
+		data["settings"] = {}
+	data["settings"]["tutorial_completed"] = true
+	data["settings"]["portal_hint_seen"] = true
+	save_game()
+
+
 func spend_gold(amount: int) -> bool:
 	if amount < 0 or get_gold() < amount:
 		return false
@@ -321,6 +353,8 @@ func _sanitize_loaded_data(loaded: Dictionary, defaults: Dictionary) -> Dictiona
 	if loaded.get("settings") is Dictionary:
 		var st: Dictionary = loaded["settings"]
 		result["settings"]["sfx_enabled"] = bool(st.get("sfx_enabled", true))
+		result["settings"]["tutorial_completed"] = bool(st.get("tutorial_completed", false))
+		result["settings"]["portal_hint_seen"] = bool(st.get("portal_hint_seen", false))
 
 	return result
 
@@ -366,5 +400,7 @@ func _get_default_data() -> Dictionary:
 		},
 		"settings": {
 			"sfx_enabled": true,
+			"tutorial_completed": false,
+			"portal_hint_seen": false,
 		},
 	}

@@ -1,4 +1,4 @@
-[gd_scene load_steps=13 format=3]
+[gd_scene load_steps=15 format=3]
 
 [ext_resource type="Script" path="res://scripts/battle_manager.gd" id="1_battle_manager"]
 [ext_resource type="Script" path="res://scripts/ai_controller.gd" id="2_ai_controller"]
@@ -75,6 +75,30 @@ corner_radius_top_left = 12
 corner_radius_top_right = 12
 corner_radius_bottom_right = 12
 corner_radius_bottom_left = 12
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_tutorial_panel"]
+bg_color = Color(0.08, 0.14, 0.23, 0.92)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.36, 0.78, 0.98, 0.92)
+corner_radius_top_left = 12
+corner_radius_top_right = 12
+corner_radius_bottom_right = 12
+corner_radius_bottom_left = 12
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_tutorial_skip"]
+bg_color = Color(0.18, 0.28, 0.42, 0.96)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.5, 0.76, 0.96, 0.95)
+corner_radius_top_left = 10
+corner_radius_top_right = 10
+corner_radius_bottom_right = 10
+corner_radius_bottom_left = 10
 
 [node name="BattleScene" type="Node2D"]
 script = ExtResource("1_battle_manager")
@@ -282,6 +306,68 @@ theme_override_font_sizes/font_size = 18
 text = "BOSS SKILL: OVERGROWTH SURGE!"
 horizontal_alignment = 1
 vertical_alignment = 1
+
+[node name="TutorialBanner" type="PanelContainer" parent="HUD/HUDRoot"]
+visible = false
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_left = 18.0
+offset_top = 160.0
+offset_right = -18.0
+offset_bottom = 224.0
+grow_horizontal = 2
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_tutorial_panel")
+
+[node name="TutorialMargin" type="MarginContainer" parent="HUD/HUDRoot/TutorialBanner"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/margin_left = 14
+theme_override_constants/margin_top = 8
+theme_override_constants/margin_right = 12
+theme_override_constants/margin_bottom = 8
+
+[node name="TutorialRow" type="HBoxContainer" parent="HUD/HUDRoot/TutorialBanner/TutorialMargin"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 12
+alignment = 1
+
+[node name="TutorialVBox" type="VBoxContainer" parent="HUD/HUDRoot/TutorialBanner/TutorialMargin/TutorialRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
+theme_override_constants/separation = 2
+alignment = 1
+
+[node name="TutorialTitleLabel" type="Label" parent="HUD/HUDRoot/TutorialBanner/TutorialMargin/TutorialRow/TutorialVBox"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.45, 0.88, 1, 1)
+theme_override_font_sizes/font_size = 14
+text = "STEP 1/2: SEND TROOPS"
+
+[node name="TutorialBodyLabel" type="Label" parent="HUD/HUDRoot/TutorialBanner/TutorialMargin/TutorialRow/TutorialVBox"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.92, 0.96, 1, 1)
+theme_override_font_sizes/font_size = 14
+text = "Drag from a blue base to capture neutral or enemy nodes."
+autowrap_mode = 2
+
+[node name="TutorialActionBtn" type="Button" parent="HUD/HUDRoot/TutorialBanner/TutorialMargin/TutorialRow"]
+custom_minimum_size = Vector2(88, 40)
+layout_mode = 2
+size_flags_vertical = 4
+focus_mode = 0
+mouse_filter = 0
+theme_override_colors/font_color = Color(0.95, 0.98, 1, 1)
+theme_override_font_sizes/font_size = 15
+theme_override_styles/normal = SubResource("StyleBoxFlat_tutorial_skip")
+theme_override_styles/hover = SubResource("StyleBoxFlat_tutorial_skip")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_tutorial_skip")
+text = "Skip"
 
 [node name="SkillBar" type="HBoxContainer" parent="HUD/HUDRoot"]
 layout_mode = 1

@@ -4,7 +4,7 @@
 **Target Platform:** Android (`720x1280` portrait, `canvas_items` / `expand`, `import_etc2_astc=true`, one-handed touch)  
 **Main Scene:** `res://scenes/MainHubScene.tscn`  
 **Autoloads:** `SaveManager` (`res://scripts/save_manager.gd`), `AudioManager` (`res://scripts/audio_manager.gd`)  
-**Current Milestone:** P3 Part 2 (Task 2: Android Safe Area & Tall-Screen Layout Completed; Next: Onboarding & Player Statistics) (`8c4f406`+)
+**Current Milestone:** P3 Part 2 (Task 3: First-Match Interactive Tutorial Hints Completed; Next: Player Profile & Statistics Dialog) (`8c4f406`+)
 
 ---
 
@@ -80,8 +80,8 @@
    - Extended `DisplayServer.get_display_safe_area()` top/bottom insets (scaled by viewport height, guarded against division by zero, and clamped safely) to `MainHubScene` (`TopBar`, `ContentArea`, `BottomTabBar`) across all 3 tabs (`Campaign`, `Creatures`, `Kingdom`).
    - Extended bottom safe-area inset handling to `BattleScene` (`BottomBar`, `BottomMargin`, and `SkillBar` shifted up without overlapping `PLAY_AREA`), with automatic re-application on viewport `size_changed`.
 3. **Onboarding & Player Statistics:**
-   - Lightweight, skippable first-match interactive tutorial hints (1-hand drag, Portal warp, Creature Skill).
-   - Player Profile / Statistics dialog accessible from Main Hub (`Wins`, `Losses`, `Current Streak`, `Best Streak`, plus optional legacy `CampaignScene` cleanup decision).
+   - **First-Match Interactive Tutorial Hints (Completed):** Lightweight, non-blocking (`MOUSE_FILTER_IGNORE` on banner/labels, `MOUSE_FILTER_STOP` on `Skip`/`Got it` button), safe-area-aware banner directly under `TopBar` in `BattleScene` guiding 1-hand drag dispatch, Creature Skill activation, and contextual Portal Warp (`1.8x`), auto-hiding on Victory/Defeat and persisting `tutorial_completed` / `portal_hint_seen` immediately in `SaveManager` (default `false` backfill for older saves).
+   - **Player Profile / Statistics Dialog (Next):** Accessible from `MainHubScene` (`Wins`, `Losses`, `Current Streak`, `Best Streak`, plus optional legacy `CampaignScene` cleanup decision).
 4. **Post-Verdant Replayability (Optional P3):**
    - Daily Seed Challenge or Endless Skirmish mode using `MapGenerator` with daily rewards.
 
