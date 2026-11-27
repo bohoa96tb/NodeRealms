@@ -2,14 +2,21 @@ class_name MainHub
 extends Control
 
 const BATTLE_SCENE_PATH: String = "res://scenes/BattleScene.tscn"
+const BASE_TOP_BAR_HEIGHT: float = 104.0
+const BASE_TOP_MARGIN: float = 12.0
+const BASE_BOTTOM_BAR_HEIGHT: float = 112.0
+const BASE_BOTTOM_MARGIN: float = 16.0
 
 enum HubTab { CAMPAIGN, CREATURES, KINGDOM }
 
+@onready var top_bar: PanelContainer = $TopBar
+@onready var top_margin: MarginContainer = $TopBar/TopMargin
 @onready var kingdom_lv_label: Label = $TopBar/TopMargin/TopRow/RealmVBox/KingdomLvLabel
 @onready var gold_label: Label = $TopBar/TopMargin/TopRow/ResourcesVBox/GoldLabel
 @onready var essence_label: Label = $TopBar/TopMargin/TopRow/ResourcesVBox/EssenceLabel
 @onready var sfx_btn: Button = $TopBar/TopMargin/TopRow/SfxBtn
 
+@onready var content_area: Control = $ContentArea
 @onready var campaign_tab: Control = $ContentArea/CampaignTab
 @onready var level_grid: GridContainer = $ContentArea/CampaignTab/CampaignVBox/GridCenter/LevelGrid
 @onready var sandbox_btn: Button = $ContentArea/CampaignTab/CampaignVBox/SandboxCenter/CampaignActionsRow/SandboxBtn
@@ -22,6 +29,8 @@ enum HubTab { CAMPAIGN, CREATURES, KINGDOM }
 @onready var kingdom_island: KingdomIsland = $ContentArea/KingdomTab/KingdomIsland
 @onready var buildings_list: VBoxContainer = $ContentArea/KingdomTab/BuildingsScroll/BuildingsMargin/BuildingsList
 
+@onready var bottom_tab_bar: PanelContainer = $BottomTabBar
+@onready var tab_margin: MarginContainer = $BottomTabBar/TabMargin
 @onready var tab_campaign_btn: Button = $BottomTabBar/TabMargin/TabRow/TabCampaignBtn
 @onready var tab_creatures_btn: Button = $BottomTabBar/TabMargin/TabRow/TabCreaturesBtn
 @onready var tab_kingdom_btn: Button = $BottomTabBar/TabMargin/TabRow/TabKingdomBtn
@@ -112,6 +121,10 @@ class CreatureEmblem extends Control:
 
 
 func _ready() -> void:
+	_apply_safe_area_padding()
+	var vp: Viewport = get_viewport()
+	if vp != null and not vp.size_changed.is_connected(_apply_safe_area_padding):
+		vp.size_changed.connect(_apply_safe_area_padding)
 	_setup_styles()
 	_connect_signals()
 	_refresh_top_bar()
@@ -121,6 +134,43 @@ func _ready() -> void:
 
 	var start_tab: int = clampi(SaveManager.last_hub_tab, 0, 2)
 	_switch_tab(start_tab as HubTab)
+
+
+func _apply_safe_area_padding() -> void:
+	var extra_top: float = 0.0
+	var extra_bottom: float = 0.0
+	var screen_size: Vector2i = DisplayServer.screen_get_size()
+	if screen_size.y > 0:
+		var safe_area: Rect2i = DisplayServer.get_display_safe_area()
+		if safe_area.size.y > 0:
+			var vp: Viewport = get_viewport()
+			var vp_height: float = vp.get_visible_rect().size.y if vp != null else 1280.0
+			if vp_height <= 0.0:
+				vp_height = 1280.0
+			if safe_area.position.y > 0:
+				var canvas_top_inset: float = (float(safe_area.position.y) / float(screen_size.y)) * vp_height
+				extra_top = clampf(canvas_top_inset - BASE_TOP_MARGIN, 0.0, 64.0)
+			var safe_bottom_px: int = maxi(0, screen_size.y - (safe_area.position.y + safe_area.size.y))
+			if safe_bottom_px > 0:
+				var canvas_bottom_inset: float = (float(safe_bottom_px) / float(screen_size.y)) * vp_height
+				extra_bottom = clampf(canvas_bottom_inset - BASE_BOTTOM_MARGIN, 0.0, 64.0)
+
+	var final_top_margin: int = roundi(BASE_TOP_MARGIN + extra_top)
+	var final_top_height: float = BASE_TOP_BAR_HEIGHT + extra_top
+	var final_bottom_margin: int = roundi(BASE_BOTTOM_MARGIN + extra_bottom)
+	var final_bottom_height: float = BASE_BOTTOM_BAR_HEIGHT + extra_bottom
+
+	if top_margin:
+		top_margin.add_theme_constant_override("margin_top", final_top_margin)
+	if top_bar:
+		top_bar.offset_bottom = final_top_height
+	if tab_margin:
+		tab_margin.add_theme_constant_override("margin_bottom", final_bottom_margin)
+	if bottom_tab_bar:
+		bottom_tab_bar.offset_top = -final_bottom_height
+	if content_area:
+		content_area.offset_top = final_top_height
+		content_area.offset_bottom = -final_bottom_height
 
 
 func _process(delta: float) -> void:

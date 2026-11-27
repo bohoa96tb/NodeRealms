@@ -5,6 +5,10 @@ const CAMPAIGN_SCENE_PATH: String = "res://scenes/MainHubScene.tscn"
 const PLAY_AREA := Rect2(90.0, 240.0, 540.0, 780.0)
 const BASE_TOP_BAR_HEIGHT: float = 154.0
 const BASE_TOP_MARGIN: float = 24.0
+const BASE_BOTTOM_BAR_HEIGHT: float = 124.0
+const BASE_BOTTOM_MARGIN: float = 20.0
+const BASE_SKILL_BAR_TOP: float = -192.0
+const BASE_SKILL_BAR_BOTTOM: float = -136.0
 const TOUCH_SELECT_PADDING: float = 16.0
 const RATIO_OPTIONS := [0.25, 0.5, 0.75, 1.0]
 const EMULATED_DEVICE_ID: int = -1
@@ -51,9 +55,12 @@ const BOSS_SURGE_RATIO: float = 0.40
 @onready var boss_gauge_bar: ProgressBar = $HUD/HUDRoot/TopBar/TopMargin/TopVBox/StatusInfoRow/BossGaugeBox/BossGaugeBar
 @onready var boss_banner_label: Label = $HUD/HUDRoot/BossBannerLabel
 
+@onready var skill_bar: HBoxContainer = $HUD/HUDRoot/SkillBar
 @onready var skill_btn: Button = $HUD/HUDRoot/SkillBar/SkillBtn
 @onready var switch_creature_btn: Button = $HUD/HUDRoot/SkillBar/SwitchCreatureBtn
 
+@onready var bottom_bar: PanelContainer = $HUD/HUDRoot/BottomBar
+@onready var bottom_margin: MarginContainer = $HUD/HUDRoot/BottomBar/BottomMargin
 @onready var btn_25: Button = $HUD/HUDRoot/BottomBar/BottomMargin/RatioContainer/Btn25
 @onready var btn_50: Button = $HUD/HUDRoot/BottomBar/BottomMargin/RatioContainer/Btn50
 @onready var btn_75: Button = $HUD/HUDRoot/BottomBar/BottomMargin/RatioContainer/Btn75
@@ -113,7 +120,10 @@ var _style_boss_bar_fill: StyleBoxFlat
 func _ready() -> void:
 	randomize()
 	ratio_buttons.assign([btn_25, btn_50, btn_75, btn_100])
-	_apply_safe_area_top_padding()
+	_apply_safe_area_padding()
+	var vp: Viewport = get_viewport()
+	if vp != null and not vp.size_changed.is_connected(_apply_safe_area_padding):
+		vp.size_changed.connect(_apply_safe_area_padding)
 	_setup_hud_styles()
 	_connect_hud_signals()
 	_connect_creature_signals()
@@ -894,20 +904,33 @@ func _update_stats_label() -> void:
 	stats_label.text = "BLUE %d  |  RED %d" % [player_troops, enemy_troops]
 
 
-func _apply_safe_area_top_padding() -> void:
+func _apply_safe_area_padding() -> void:
 	var extra_top: float = 0.0
+	var extra_bottom: float = 0.0
+	var vp: Viewport = get_viewport()
+	var vp_height: float = vp.get_visible_rect().size.y if vp != null else 1280.0
+	if vp_height <= 0.0:
+		vp_height = 1280.0
+
 	var screen_size: Vector2i = DisplayServer.screen_get_size()
 	if screen_size.y > 0:
 		var safe_area: Rect2i = DisplayServer.get_display_safe_area()
-		if safe_area.position.y > 0:
-			var vp_height: float = get_viewport().get_visible_rect().size.y
-			if vp_height <= 0.0:
-				vp_height = 1280.0
-			var canvas_top_inset: float = (float(safe_area.position.y) / float(screen_size.y)) * vp_height
-			extra_top = clampf(canvas_top_inset - BASE_TOP_MARGIN, 0.0, 36.0)
+		if safe_area.size.y > 0:
+			if safe_area.position.y > 0:
+				var canvas_top_inset: float = (float(safe_area.position.y) / float(screen_size.y)) * vp_height
+				extra_top = clampf(canvas_top_inset - BASE_TOP_MARGIN, 0.0, 36.0)
+			var safe_bottom_px: int = maxi(0, screen_size.y - (safe_area.position.y + safe_area.size.y))
+			if safe_bottom_px > 0:
+				var canvas_bottom_inset: float = (float(safe_bottom_px) / float(screen_size.y)) * vp_height
+				var cam_center_y: float = camera_2d.position.y if camera_2d else 640.0
+				var max_bottom_for_play_area: float = maxf(0.0, (cam_center_y + vp_height * 0.5 + BASE_SKILL_BAR_TOP) - (PLAY_AREA.end.y + 24.0))
+				var max_extra_bottom: float = minf(72.0, max_bottom_for_play_area)
+				extra_bottom = clampf(canvas_bottom_inset - BASE_BOTTOM_MARGIN, 0.0, max_extra_bottom)
 
 	var final_top_margin: int = roundi(BASE_TOP_MARGIN + extra_top)
 	var final_bar_height: float = BASE_TOP_BAR_HEIGHT + extra_top
+	var final_bottom_margin: int = roundi(BASE_BOTTOM_MARGIN + extra_bottom)
+	var final_bottom_height: float = BASE_BOTTOM_BAR_HEIGHT + extra_bottom
 
 	if top_margin:
 		top_margin.add_theme_constant_override("margin_top", final_top_margin)
@@ -916,6 +939,13 @@ func _apply_safe_area_top_padding() -> void:
 	if boss_banner_label:
 		boss_banner_label.offset_top = final_bar_height + 4.0
 		boss_banner_label.offset_bottom = final_bar_height + 36.0
+	if bottom_margin:
+		bottom_margin.add_theme_constant_override("margin_bottom", final_bottom_margin)
+	if bottom_bar:
+		bottom_bar.offset_top = -final_bottom_height
+	if skill_bar:
+		skill_bar.offset_top = BASE_SKILL_BAR_TOP - extra_bottom
+		skill_bar.offset_bottom = BASE_SKILL_BAR_BOTTOM - extra_bottom
 
 
 func _update_battle_readability_hud() -> void:

@@ -4,7 +4,7 @@
 **Target Platform:** Android (`720x1280` portrait, `canvas_items` / `expand`, `import_etc2_astc=true`, one-handed touch)  
 **Main Scene:** `res://scenes/MainHubScene.tscn`  
 **Autoloads:** `SaveManager` (`res://scripts/save_manager.gd`), `AudioManager` (`res://scripts/audio_manager.gd`)  
-**Current Milestone:** P3 Part 2 (Task 1: In-Battle Readability HUD & Android Top Safe-Area Padding) + Android CI (`adc403f`+)
+**Current Milestone:** P3 Part 2 (Task 2: Android Safe Area & Tall-Screen Layout Completed; Next: Onboarding & Player Statistics) (`8c4f406`+)
 
 ---
 
@@ -76,8 +76,9 @@
    - Live match timer (`00:42 / 01:30`) in `BattleScene` `TopBar` tracking `<90s` Fast Clear bonus (bright green `<90s`, muted gray `>=90s`, frozen on Pause/End), plus live `NO LOSS` / `BASE LOST` indicator.
    - Compact **Boss Surge** countdown + `ProgressBar` (`BOSS SURGE: Xs` -> blinking `CHARGING! Xs`) visible only on Level 15 and `Test Boss`, freezing cleanly on Victory/Defeat/Pause.
    - Android top safe-area inset padding (`DisplayServer.get_display_safe_area()` scaled by viewport height) in `BattleScene` `TopBar` with `PLAY_AREA` at `y=240..1020` to clear notches and banners.
-2. **Android Safe Area & Tall-Screen Layout (Remaining):**
-   - Extend `DisplayServer.get_display_safe_area()` top/bottom insets to `MainHubScene` and `BattleScene` bottom navigation/HUD bars.
+2. **Android Safe Area & Tall-Screen Layout (Completed):**
+   - Extended `DisplayServer.get_display_safe_area()` top/bottom insets (scaled by viewport height, guarded against division by zero, and clamped safely) to `MainHubScene` (`TopBar`, `ContentArea`, `BottomTabBar`) across all 3 tabs (`Campaign`, `Creatures`, `Kingdom`).
+   - Extended bottom safe-area inset handling to `BattleScene` (`BottomBar`, `BottomMargin`, and `SkillBar` shifted up without overlapping `PLAY_AREA`), with automatic re-application on viewport `size_changed`.
 3. **Onboarding & Player Statistics:**
    - Lightweight, skippable first-match interactive tutorial hints (1-hand drag, Portal warp, Creature Skill).
    - Player Profile / Statistics dialog accessible from Main Hub (`Wins`, `Losses`, `Current Streak`, `Best Streak`, plus optional legacy `CampaignScene` cleanup decision).
