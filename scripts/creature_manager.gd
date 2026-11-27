@@ -7,6 +7,8 @@ signal cooldown_updated(remaining_cooldown: float, remaining_active: float)
 signal creature_changed(creature: Dictionary)
 
 var equipped_creature_id: String = "flame_golem"
+var equipped_creature_level: int = 1
+var laboratory_level: int = 1
 var active_timer: float = 0.0
 var cooldown_timer: float = 0.0
 
@@ -38,12 +40,20 @@ func set_paused(paused: bool) -> void:
 	_is_paused = paused
 
 
+func sync_from_save() -> void:
+	equipped_creature_id = SaveManager.get_equipped_creature()
+	equipped_creature_level = SaveManager.get_creature_level(equipped_creature_id)
+	laboratory_level = SaveManager.get_building_level("laboratory")
+
+
 func get_equipped_creature() -> Dictionary:
-	return CreatureData.get_creature(equipped_creature_id)
+	return CreatureData.get_creature_stats(equipped_creature_id, equipped_creature_level, laboratory_level)
 
 
 func cycle_creature() -> Dictionary:
 	equipped_creature_id = CreatureData.get_next_creature_id(equipped_creature_id)
+	equipped_creature_level = SaveManager.get_creature_level(equipped_creature_id)
+	laboratory_level = SaveManager.get_building_level("laboratory")
 	reset_state()
 	var creature: Dictionary = get_equipped_creature()
 	creature_changed.emit(creature)

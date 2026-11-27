@@ -6,9 +6,10 @@ const MAX_CAMPAIGN_LEVEL: int = 15
 
 var data: Dictionary = {}
 
-# Runtime navigation state passed between CampaignScene and BattleScene
+# Runtime navigation state passed between MainHubScene and BattleScene
 var is_campaign: bool = false
 var current_level_id: int = 1
+var last_hub_tab: int = 0
 
 
 func _ready() -> void:
@@ -73,6 +74,22 @@ func get_essence() -> int:
 	return int(data["player"]["essence"])
 
 
+func spend_gold(amount: int) -> bool:
+	if amount < 0 or get_gold() < amount:
+		return false
+	data["player"]["gold"] = get_gold() - amount
+	save_game()
+	return true
+
+
+func spend_essence(amount: int) -> bool:
+	if amount < 0 or get_essence() < amount:
+		return false
+	data["player"]["essence"] = get_essence() - amount
+	save_game()
+	return true
+
+
 func get_unlocked_level() -> int:
 	return clampi(int(data["campaign"]["unlocked_level"]), 1, MAX_CAMPAIGN_LEVEL)
 
@@ -99,6 +116,94 @@ func set_equipped_creature(creature_id: String) -> void:
 		owned.append(creature_id)
 	data["creatures"]["equipped"] = creature_id
 	save_game()
+
+
+func get_creature_level(creature_id: String) -> int:
+	var levels: Dictionary = data["creatures"]["levels"]
+	return clampi(int(levels.get(creature_id, 1)), 1, CreatureData.MAX_CREATURE_LEVEL)
+
+
+func upgrade_creature(creature_id: String) -> bool:
+	var current_lv: int = get_creature_level(creature_id)
+	if current_lv >= CreatureData.MAX_CREATURE_LEVEL:
+		return false
+	var cost: int = CreatureData.get_upgrade_cost(current_lv)
+	if cost < 0 or not spend_essence(cost):
+		return false
+	data["creatures"]["levels"][creature_id] = current_lv + 1
+	save_game()
+	return true
+
+
+func get_building_level(building_id: String) -> int:
+	var buildings: Dictionary = data["kingdom"]["buildings"]
+	return clampi(int(buildings.get(building_id, 1)), 1, KingdomData.MAX_BUILDING_LEVEL)
+
+
+func can_upgrade_building(building_id: String) -> Dictionary:
+	var current_lv: int = get_building_level(building_id)
+	if current_lv >= KingdomData.MAX_BUILDING_LEVEL:
+		return {"ok": false, "reason": "MAX"}
+
+	if building_id != "castle":
+		var castle_lv: int = get_building_level("castle")
+		if current_lv >= castle_lv:
+			return {"ok": false, "reason": "Need Castle LV %d" % (current_lv + 1)}
+
+	var cost: int = KingdomData.get_upgrade_cost(current_lv)
+	if get_gold() < cost:
+		return {"ok": false, "reason": "Need %d Gold" % cost}
+
+	return {"ok": true, "reason": ""}
+
+
+func upgrade_building(building_id: String) -> bool:
+	var check: Dictionary = can_upgrade_building(building_id)
+	if not check["ok"]:
+		return false
+
+	# Claim pending Gold Mine income before changing mine level
+	if building_id == "gold_mine":
+		claim_mine_gold()
+
+	var current_lv: int = get_building_level(building_id)
+	var cost: int = KingdomData.get_upgrade_cost(current_lv)
+	if cost < 0 or not spend_gold(cost):
+		return false
+
+	data["kingdom"]["buildings"][building_id] = current_lv + 1
+	if building_id == "castle":
+		data["player"]["level"] = current_lv + 1
+	save_game()
+	return true
+
+
+func get_pending_mine_gold() -> int:
+	var mine_lv: int = get_building_level("gold_mine")
+	var now: int = int(Time.get_unix_time_from_system())
+	var last_claim: int = int(data["kingdom"].get("last_claim_time", now))
+	var max_seconds: int = KingdomData.GOLD_MINE_MAX_HOURS * 3600
+	var elapsed: int = clampi(now - last_claim, 0, max_seconds)
+	var gold_per_sec: float = float(mine_lv * KingdomData.GOLD_MINE_RATE_PER_MIN) / 60.0
+	return floori(float(elapsed) * gold_per_sec)
+
+
+func claim_mine_gold() -> int:
+	var pending: int = get_pending_mine_gold()
+	var now: int = int(Time.get_unix_time_from_system())
+	data["kingdom"]["last_claim_time"] = now
+	if pending > 0:
+		data["player"]["gold"] = get_gold() + pending
+	save_game()
+	return pending
+
+
+func get_barracks_max_troops_bonus() -> int:
+	return get_building_level("barracks") * 3
+
+
+func get_habitat_essence_bonus_ratio() -> float:
+	return float(get_building_level("habitat")) * 0.05
 
 
 func record_campaign_victory(level_id: int, gold_earned: int, essence_earned: int) -> void:
@@ -168,13 +273,22 @@ func _sanitize_loaded_data(loaded: Dictionary, defaults: Dictionary) -> Dictiona
 		var eq: String = str(cr.get("equipped", "flame_golem"))
 		if (result["creatures"]["owned"] as Array).has(eq):
 			result["creatures"]["equipped"] = eq
+		if cr.get("levels") is Dictionary:
+			var loaded_levels: Dictionary = cr["levels"]
+			for cid in CreatureData.CREATURE_ORDER:
+				result["creatures"]["levels"][cid] = clampi(int(loaded_levels.get(cid, 1)), 1, CreatureData.MAX_CREATURE_LEVEL)
 
 	if loaded.get("kingdom") is Dictionary:
 		var k: Dictionary = loaded["kingdom"]
 		if k.get("buildings") is Dictionary:
-			result["kingdom"]["buildings"] = k["buildings"].duplicate(true)
+			var loaded_buildings: Dictionary = k["buildings"]
+			for bid in KingdomData.BUILDING_ORDER:
+				result["kingdom"]["buildings"][bid] = clampi(int(loaded_buildings.get(bid, 1)), 1, KingdomData.MAX_BUILDING_LEVEL)
 		if k.get("decorations") is Array:
 			result["kingdom"]["decorations"] = k["decorations"].duplicate(true)
+		var claim_ts: int = int(k.get("last_claim_time", 0))
+		if claim_ts > 0:
+			result["kingdom"]["last_claim_time"] = claim_ts
 
 	if loaded.get("statistics") is Dictionary:
 		var s: Dictionary = loaded["statistics"]
@@ -201,10 +315,23 @@ func _get_default_data() -> Dictionary:
 		"creatures": {
 			"owned": ["flame_golem", "aqua_spirit", "forest_guardian", "stone_titan"],
 			"equipped": "flame_golem",
+			"levels": {
+				"flame_golem": 1,
+				"aqua_spirit": 1,
+				"forest_guardian": 1,
+				"stone_titan": 1,
+			},
 		},
 		"kingdom": {
-			"buildings": {},
+			"buildings": {
+				"castle": 1,
+				"gold_mine": 1,
+				"barracks": 1,
+				"laboratory": 1,
+				"habitat": 1,
+			},
 			"decorations": [],
+			"last_claim_time": int(Time.get_unix_time_from_system()),
 		},
 		"statistics": {
 			"wins": 0,

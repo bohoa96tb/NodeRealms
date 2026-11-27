@@ -6,6 +6,7 @@ signal faction_changed(node: BaseNode, old_faction: Faction, new_faction: Factio
 enum Faction { NEUTRAL, PLAYER, ENEMY }
 
 const RADIUS: float = 42.0
+const BASE_MAX_TROOPS: int = 50
 
 const COLOR_PLAYER_FILL := Color(0.18, 0.525, 0.871, 1.0)
 const COLOR_PLAYER_RIM := Color(0.45, 0.75, 1.0, 1.0)
@@ -26,6 +27,7 @@ const COLOR_PORTAL_CYAN := Color.CYAN
 		if faction != value:
 			var prev_faction: Faction = faction
 			faction = value
+			_update_effective_max_troops()
 			_refresh_visuals()
 			if is_inside_tree():
 				faction_changed.emit(self, prev_faction, faction)
@@ -43,6 +45,11 @@ const COLOR_PORTAL_CYAN := Color.CYAN
 @onready var troop_label: Label = $TroopLabel
 
 var creature_manager: CreatureManager = null
+var barracks_bonus: int = 0:
+	set(value):
+		barracks_bonus = maxi(0, value)
+		_update_effective_max_troops()
+		queue_redraw()
 
 var is_selected: bool = false:
 	set(value):
@@ -264,8 +271,13 @@ func _is_player_buff_active() -> bool:
 
 
 func _refresh_visuals() -> void:
+	_update_effective_max_troops()
 	_update_troop_label()
 	queue_redraw()
+
+
+func _update_effective_max_troops() -> void:
+	max_troops = BASE_MAX_TROOPS + (barracks_bonus if faction == Faction.PLAYER else 0)
 
 
 func _update_troop_label() -> void:

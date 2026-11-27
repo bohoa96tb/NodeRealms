@@ -1,7 +1,7 @@
 class_name BattleManager
 extends Node2D
 
-const CAMPAIGN_SCENE_PATH: String = "res://scenes/CampaignScene.tscn"
+const CAMPAIGN_SCENE_PATH: String = "res://scenes/MainHubScene.tscn"
 const PLAY_AREA := Rect2(90.0, 185.0, 540.0, 835.0)
 const TOUCH_SELECT_PADDING: float = 16.0
 const RATIO_OPTIONS := [0.25, 0.5, 0.75, 1.0]
@@ -89,7 +89,7 @@ func _ready() -> void:
 	_select_ratio_index(1) # Default 50%
 
 	if creature_manager:
-		creature_manager.equipped_creature_id = SaveManager.get_equipped_creature()
+		creature_manager.sync_from_save()
 
 	if SaveManager.is_campaign:
 		load_campaign_level(SaveManager.current_level_id)
@@ -196,6 +196,7 @@ func load_generated_map(
 
 	if creature_manager:
 		creature_manager.set_paused(false)
+		creature_manager.sync_from_save()
 		creature_manager.reset_state()
 
 	if drag_line:
@@ -214,11 +215,13 @@ func load_generated_map(
 	current_seed = int(map_data["seed"])
 	current_tier = int(map_data["tier"])
 
+	var barracks_bonus: int = SaveManager.get_barracks_max_troops_bonus()
 	var node_by_id: Dictionary = {}
 	for node_info in map_data["nodes"]:
 		var node: BaseNode = base_node_scene.instantiate() as BaseNode
 		node.node_id = int(node_info["id"])
 		node.position = node_info["position"]
+		node.barracks_bonus = barracks_bonus
 		node.faction = node_info["faction"] as BaseNode.Faction
 		node.troops = float(node_info["troops"])
 		node.creature_manager = creature_manager
@@ -555,8 +558,11 @@ func _show_end_screen(victory: bool) -> void:
 			var bonus_no_lost: int = BONUS_NO_BASE_LOST_GOLD if no_lost else 0
 			var bonus_fast: int = BONUS_FAST_CLEAR_GOLD if fast_clear else 0
 			var total_gold: int = base_gold + bonus_cap + bonus_no_lost + bonus_fast
+			var habitat_ratio: float = SaveManager.get_habitat_essence_bonus_ratio()
+			var bonus_essence: int = roundi(float(base_essence) * habitat_ratio)
+			var total_essence: int = base_essence + bonus_essence
 
-			SaveManager.record_campaign_victory(level_id, total_gold, base_essence)
+			SaveManager.record_campaign_victory(level_id, total_gold, total_essence)
 
 			result_subtitle.text = "LV %d: %s Cleared! (%ds)" % [level_id, level_name, int(_match_elapsed_time)]
 			reward_details_label.text = (
@@ -564,13 +570,13 @@ func _show_end_screen(victory: bool) -> void:
 				+ "%s Capture All Nodes: +%d Gold\n"
 				+ "%s No Base Lost: +%d Gold\n"
 				+ "%s Fast Clear (<90s): +%d Gold\n"
-				+ "Total Earned: +%d Gold  |  +%d Essence"
+				+ "Total Earned: +%d Gold  |  +%d Essence (+%d Habitat)"
 			) % [
 				base_gold,
 				"[OK]" if cap_all else "[--]", bonus_cap,
 				"[OK]" if no_lost else "[--]", bonus_no_lost,
 				"[OK]" if fast_clear else "[--]", bonus_fast,
-				total_gold, base_essence,
+				total_gold, total_essence, bonus_essence,
 			]
 			reward_details_label.visible = true
 			next_level_btn.visible = level_id < CampaignData.TOTAL_LEVELS

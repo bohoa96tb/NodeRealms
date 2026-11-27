@@ -11,7 +11,7 @@ config_version=5
 [application]
 
 config/name="Node Realms"
-run/main_scene="res://scenes/CampaignScene.tscn"
+run/main_scene="res://scenes/MainHubScene.tscn"
 config/features=PackedStringArray("4.3", "GL Compatibility")
 
 [autoload]

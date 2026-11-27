@@ -1,0 +1,241 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/main_hub.gd" id="1_main_hub"]
+[ext_resource type="Script" path="res://scripts/kingdom_island.gd" id="2_kingdom_island"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_topbar"]
+bg_color = Color(0.09, 0.12, 0.18, 0.96)
+border_width_bottom = 2
+border_color = Color(0.22, 0.3, 0.42, 0.9)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_bottombar"]
+bg_color = Color(0.09, 0.12, 0.18, 0.96)
+border_width_top = 2
+border_color = Color(0.22, 0.3, 0.42, 0.9)
+
+[node name="MainHubScene" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_main_hub")
+
+[node name="Background" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0.067, 0.086, 0.125, 1)
+
+[node name="TopBar" type="PanelContainer" parent="."]
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_bottom = 104.0
+grow_horizontal = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_topbar")
+
+[node name="TopMargin" type="MarginContainer" parent="TopBar"]
+layout_mode = 2
+theme_override_constants/margin_left = 22
+theme_override_constants/margin_top = 12
+theme_override_constants/margin_right = 22
+theme_override_constants/margin_bottom = 12
+
+[node name="TopRow" type="HBoxContainer" parent="TopBar/TopMargin"]
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="RealmVBox" type="VBoxContainer" parent="TopBar/TopMargin/TopRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 4
+alignment = 1
+
+[node name="TitleLabel" type="Label" parent="TopBar/TopMargin/TopRow/RealmVBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.92, 0.96, 1, 1)
+theme_override_font_sizes/font_size = 25
+text = "NODE REALMS"
+
+[node name="KingdomLvLabel" type="Label" parent="TopBar/TopMargin/TopRow/RealmVBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.58, 0.78, 0.94, 1)
+theme_override_font_sizes/font_size = 14
+text = "KINGDOM LV 1  |  VERDANT REALM (0/15)"
+
+[node name="ResourcesVBox" type="VBoxContainer" parent="TopBar/TopMargin/TopRow"]
+layout_mode = 2
+theme_override_constants/separation = 4
+alignment = 1
+
+[node name="GoldLabel" type="Label" parent="TopBar/TopMargin/TopRow/ResourcesVBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.82, 0.32, 1)
+theme_override_font_sizes/font_size = 20
+text = "GOLD: 100"
+horizontal_alignment = 2
+
+[node name="EssenceLabel" type="Label" parent="TopBar/TopMargin/TopRow/ResourcesVBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.36, 0.94, 0.78, 1)
+theme_override_font_sizes/font_size = 18
+text = "ESSENCE: 0"
+horizontal_alignment = 2
+
+[node name="ContentArea" type="Control" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = 104.0
+offset_bottom = -112.0
+grow_horizontal = 2
+grow_vertical = 2
+clip_contents = true
+
+[node name="CampaignTab" type="MarginContainer" parent="ContentArea"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 18
+theme_override_constants/margin_top = 16
+theme_override_constants/margin_right = 18
+theme_override_constants/margin_bottom = 16
+
+[node name="CampaignVBox" type="VBoxContainer" parent="ContentArea/CampaignTab"]
+layout_mode = 2
+theme_override_constants/separation = 16
+alignment = 1
+
+[node name="GridCenter" type="CenterContainer" parent="ContentArea/CampaignTab/CampaignVBox"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="LevelGrid" type="GridContainer" parent="ContentArea/CampaignTab/CampaignVBox/GridCenter"]
+layout_mode = 2
+theme_override_constants/h_separation = 14
+theme_override_constants/v_separation = 14
+columns = 3
+
+[node name="SandboxCenter" type="CenterContainer" parent="ContentArea/CampaignTab/CampaignVBox"]
+layout_mode = 2
+
+[node name="SandboxBtn" type="Button" parent="ContentArea/CampaignTab/CampaignVBox/SandboxCenter"]
+custom_minimum_size = Vector2(320, 60)
+layout_mode = 2
+focus_mode = 0
+theme_override_colors/font_color = Color(0.92, 0.96, 1, 1)
+theme_override_font_sizes/font_size = 20
+text = "Sandbox Mode"
+
+[node name="CreaturesTab" type="MarginContainer" parent="ContentArea"]
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 18
+theme_override_constants/margin_top = 14
+theme_override_constants/margin_right = 18
+theme_override_constants/margin_bottom = 14
+
+[node name="CreaturesScroll" type="ScrollContainer" parent="ContentArea/CreaturesTab"]
+layout_mode = 2
+horizontal_scroll_mode = 0
+
+[node name="CreaturesList" type="VBoxContainer" parent="ContentArea/CreaturesTab/CreaturesScroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 14
+
+[node name="KingdomTab" type="VBoxContainer" parent="ContentArea"]
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 8
+
+[node name="KingdomIsland" type="Control" parent="ContentArea/KingdomTab"]
+custom_minimum_size = Vector2(0, 260)
+layout_mode = 2
+mouse_filter = 2
+script = ExtResource("2_kingdom_island")
+
+[node name="BuildingsScroll" type="ScrollContainer" parent="ContentArea/KingdomTab"]
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="BuildingsMargin" type="MarginContainer" parent="ContentArea/KingdomTab/BuildingsScroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/margin_left = 18
+theme_override_constants/margin_top = 4
+theme_override_constants/margin_right = 18
+theme_override_constants/margin_bottom = 14
+
+[node name="BuildingsList" type="VBoxContainer" parent="ContentArea/KingdomTab/BuildingsScroll/BuildingsMargin"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 10
+
+[node name="BottomTabBar" type="PanelContainer" parent="."]
+layout_mode = 1
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = -112.0
+grow_horizontal = 2
+grow_vertical = 0
+theme_override_styles/panel = SubResource("StyleBoxFlat_bottombar")
+
+[node name="TabMargin" type="MarginContainer" parent="BottomTabBar"]
+layout_mode = 2
+theme_override_constants/margin_left = 18
+theme_override_constants/margin_top = 16
+theme_override_constants/margin_right = 18
+theme_override_constants/margin_bottom = 16
+
+[node name="TabRow" type="HBoxContainer" parent="BottomTabBar/TabMargin"]
+layout_mode = 2
+theme_override_constants/separation = 14
+alignment = 1
+
+[node name="TabCampaignBtn" type="Button" parent="BottomTabBar/TabMargin/TabRow"]
+custom_minimum_size = Vector2(0, 68)
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+theme_override_font_sizes/font_size = 20
+text = "Campaign"
+
+[node name="TabCreaturesBtn" type="Button" parent="BottomTabBar/TabMargin/TabRow"]
+custom_minimum_size = Vector2(0, 68)
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+theme_override_font_sizes/font_size = 20
+text = "Creatures"
+
+[node name="TabKingdomBtn" type="Button" parent="BottomTabBar/TabMargin/TabRow"]
+custom_minimum_size = Vector2(0, 68)
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+theme_override_font_sizes/font_size = 20
+text = "Kingdom"
