@@ -54,23 +54,35 @@ jobs:
           sudo chmod +x /usr/local/bin/godot
           rm -f godot.zip
 
-          mkdir -p "$HOME/.local/share/godot/export_templates/${TEMPLATE_DIR}"
+          TEMPLATE_TARGET="$HOME/.local/share/godot/export_templates/${TEMPLATE_DIR}"
+          mkdir -p "$TEMPLATE_TARGET"
           wget -q "https://github.com/godotengine/godot-builds/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_export_templates.tpz" -O templates.tpz
-          unzip -q templates.tpz -d temp_templates
+          unzip -q -o templates.tpz -d temp_templates
           if [ -d "temp_templates/templates" ]; then
-            mv temp_templates/templates/* "$HOME/.local/share/godot/export_templates/${TEMPLATE_DIR}/"
+            mv -f temp_templates/templates/* "$TEMPLATE_TARGET/"
           else
-            mv temp_templates/* "$HOME/.local/share/godot/export_templates/${TEMPLATE_DIR}/"
+            mv -f temp_templates/* "$TEMPLATE_TARGET/"
           fi
           rm -rf templates.tpz temp_templates
+
+          # Verify key Android templates exist directly in TEMPLATE_TARGET
+          test -f "$TEMPLATE_TARGET/android_debug.apk"
+          test -f "$TEMPLATE_TARGET/android_release.apk"
+          test -f "$TEMPLATE_TARGET/android_source.zip"
           godot --version
 
-      - name: Generate Temporary Debug Keystore & Configure Editor Settings
+      - name: Import Godot Project & Class Cache
         run: |
-          mkdir -p "$HOME/.android"
-          rm -f "$HOME/.android/debug.keystore"
+          timeout 90 godot --headless --import || true
+
+      - name: Generate Debug Keystore & Configure Godot Editor Settings
+        run: |
+          KEYSTORE_DIR="$HOME/.android"
+          KEYSTORE_PATH="${KEYSTORE_DIR}/debug.keystore"
+          mkdir -p "$KEYSTORE_DIR"
+          rm -f "$KEYSTORE_PATH"
           keytool -genkeypair -v \
-            -keystore "$HOME/.android/debug.keystore" \
+            -keystore "$KEYSTORE_PATH" \
             -storepass android \
             -alias androiddebugkey \
             -keypass android \
@@ -80,21 +92,25 @@ jobs:
             -dname "CN=Android Debug,O=Android,C=US"
 
           SDK_PATH="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
-          mkdir -p "$HOME/.config/godot"
-          cat <<EOF > "$HOME/.config/godot/editor_settings-4.3.tres"
+          CONFIG_DIR="$HOME/.config/godot"
+          mkdir -p "$CONFIG_DIR"
+          cat <<EOF > "${CONFIG_DIR}/editor_settings-4.3.tres"
           [gd_resource type="EditorSettings" format=3]
 
           [resource]
           export/android/android_sdk_path = "${SDK_PATH}"
           export/android/java_sdk_path = "${JAVA_HOME}"
-          export/android/debug_keystore = "${HOME}/.android/debug.keystore"
+          export/android/debug_keystore = "${KEYSTORE_PATH}"
           export/android/debug_keystore_user = "androiddebugkey"
           export/android/debug_keystore_pass = "android"
           EOF
 
-      - name: Import Godot Project & Class Cache
+      - name: Verify Export Templates, Keystore & Editor Settings
         run: |
-          timeout 90 godot --headless --import || true
+          echo "HOME=${HOME} ANDROID_HOME=${ANDROID_HOME} JAVA_HOME=${JAVA_HOME}"
+          ls -la "$HOME/.local/share/godot/export_templates/4.3.stable/"
+          ls -la "$HOME/.android/debug.keystore"
+          cat "$HOME/.config/godot/editor_settings-4.3.tres"
 
       - name: Export Debug APK
         run: |
