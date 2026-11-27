@@ -37,6 +37,8 @@ const COLOR_PORTAL_CYAN := Color.CYAN
 
 @onready var troop_label: Label = $TroopLabel
 
+var creature_manager: CreatureManager = null
+
 var is_selected: bool = false:
 	set(value):
 		if is_selected != value:
@@ -57,7 +59,11 @@ var is_hovered_target: bool = false:
 
 var _is_mouse_over: bool = false
 var _portal_angle: float = 0.0
+var _buff_pulse: float = 0.0
+var _burst_progress: float = 1.0
+var _burst_color: Color = Color.WHITE
 var _pulse_tween: Tween
+var _burst_tween: Tween
 
 
 func _ready() -> void:
@@ -67,12 +73,27 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
+	var needs_redraw: bool = false
+
 	if faction == Faction.PLAYER or faction == Faction.ENEMY:
 		if troops < float(max_troops):
-			troops = minf(float(max_troops), troops + production_rate * delta)
+			var prod_mult: float = 1.0
+			if faction == Faction.PLAYER and creature_manager != null and is_instance_valid(creature_manager):
+				prod_mult = creature_manager.get_production_mult()
+			troops = minf(float(max_troops), troops + production_rate * prod_mult * delta)
 
 	if has_portal():
 		_portal_angle = fmod(_portal_angle + delta * 1.8, TAU)
+		needs_redraw = true
+
+	if _is_player_buff_active():
+		_buff_pulse = fmod(_buff_pulse + delta * 5.0, TAU)
+		needs_redraw = true
+
+	if _burst_progress < 1.0:
+		needs_redraw = true
+
+	if needs_redraw:
 		queue_redraw()
 
 
@@ -91,6 +112,15 @@ func _draw() -> void:
 		draw_arc(Vector2.ZERO, portal_radius, _portal_angle + PI, _portal_angle + PI * 1.68, 24, COLOR_PORTAL_CYAN, 3.0, true)
 		draw_circle(Vector2.from_angle(_portal_angle) * portal_radius, 3.5, COLOR_PORTAL_ORCHID)
 		draw_circle(Vector2.from_angle(_portal_angle + PI) * portal_radius, 3.5, COLOR_PORTAL_CYAN)
+
+	# Active creature buff glow ring for PLAYER nodes
+	if _is_player_buff_active():
+		var creature: Dictionary = creature_manager.get_equipped_creature()
+		var glow_col: Color = creature["color"]
+		var border_col: Color = creature["border_color"]
+		var pulse_alpha: float = 0.55 + 0.35 * sin(_buff_pulse)
+		draw_circle(Vector2.ZERO, RADIUS + 8.0, Color(glow_col.r, glow_col.g, glow_col.b, 0.18 * pulse_alpha))
+		draw_arc(Vector2.ZERO, RADIUS + 4.0, 0.0, TAU, 48, Color(border_col.r, border_col.g, border_col.b, pulse_alpha), 3.0, true)
 
 	# Selection / target highlight rings
 	if is_selected:
@@ -121,6 +151,12 @@ func _draw() -> void:
 			var end_angle: float = start_angle + TAU * fill_ratio
 			draw_arc(Vector2.ZERO, RADIUS - 5.0, start_angle, end_angle, 40, Color(1.0, 1.0, 1.0, 0.38), 2.5, true)
 
+	# Skill activation expanding shockwave ripple
+	if _burst_progress < 1.0:
+		var ripple_r: float = RADIUS + _burst_progress * 34.0
+		var ripple_alpha: float = (1.0 - _burst_progress) * 0.85
+		draw_arc(Vector2.ZERO, ripple_r, 0.0, TAU, 48, Color(_burst_color.r, _burst_color.g, _burst_color.b, ripple_alpha), 4.0, true)
+
 
 func extract_troops(ratio: float) -> int:
 	var available: int = floori(troops)
@@ -135,6 +171,26 @@ func extract_troops(ratio: float) -> int:
 	return amount
 
 
+func receive_heal(amount: int, burst_color: Color) -> void:
+	if amount <= 0:
+		return
+	troops = minf(float(max_troops), troops + float(amount))
+	play_pulse(1.18)
+	trigger_skill_burst(burst_color)
+
+
+func trigger_skill_burst(burst_color: Color) -> void:
+	if not is_inside_tree():
+		return
+	_burst_color = burst_color
+	_burst_progress = 0.0
+	if _burst_tween and _burst_tween.is_valid():
+		_burst_tween.kill()
+	_burst_tween = create_tween()
+	_burst_tween.tween_property(self, "_burst_progress", 1.0, 0.45).set_ease(Tween.EASE_OUT)
+	queue_redraw()
+
+
 func receive_army(incoming_faction: Faction, incoming_troops: int, attack_mult: float) -> void:
 	if incoming_troops <= 0:
 		return
@@ -145,6 +201,9 @@ func receive_army(incoming_faction: Faction, incoming_troops: int, attack_mult: 
 		return
 
 	var defense_mult: float = power_multiplier
+	if faction == Faction.PLAYER and creature_manager != null and is_instance_valid(creature_manager):
+		defense_mult *= creature_manager.get_defense_mult()
+
 	var attack_power: float = float(incoming_troops) * attack_mult
 	var defense_power: float = troops * defense_mult
 
@@ -193,6 +252,10 @@ func play_pulse(peak_scale: float = 1.15) -> void:
 	_pulse_tween = create_tween()
 	_pulse_tween.tween_property(self, "scale", Vector2(peak_scale, peak_scale), 0.08).set_ease(Tween.EASE_OUT)
 	_pulse_tween.tween_property(self, "scale", Vector2.ONE, 0.14).set_ease(Tween.EASE_IN_OUT)
+
+
+func _is_player_buff_active() -> bool:
+	return faction == Faction.PLAYER and creature_manager != null and is_instance_valid(creature_manager) and creature_manager.is_skill_active()
 
 
 func _refresh_visuals() -> void:

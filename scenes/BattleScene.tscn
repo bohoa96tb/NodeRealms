@@ -1,9 +1,10 @@
-[gd_scene load_steps=10 format=3]
+[gd_scene load_steps=11 format=3]
 
 [ext_resource type="Script" path="res://scripts/battle_manager.gd" id="1_battle_manager"]
 [ext_resource type="Script" path="res://scripts/ai_controller.gd" id="2_ai_controller"]
 [ext_resource type="PackedScene" path="res://scenes/BaseNode.tscn" id="3_base_node"]
 [ext_resource type="PackedScene" path="res://scenes/ArmyGroup.tscn" id="4_army_group"]
+[ext_resource type="Script" path="res://scripts/creature_manager.gd" id="5_creature_manager"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_topbar"]
 bg_color = Color(0.09, 0.12, 0.18, 0.92)
@@ -84,6 +85,9 @@ end_cap_mode = 2
 
 [node name="AIController" type="Node" parent="."]
 script = ExtResource("2_ai_controller")
+
+[node name="CreatureManager" type="Node" parent="."]
+script = ExtResource("5_creature_manager")
 
 [node name="HUD" type="CanvasLayer" parent="."]
 
@@ -176,6 +180,39 @@ focus_mode = 0
 theme_override_colors/font_color = Color(0.92, 0.95, 1, 1)
 theme_override_font_sizes/font_size = 15
 text = "Next Map"
+
+[node name="SkillBar" type="HBoxContainer" parent="HUD/HUDRoot"]
+layout_mode = 1
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 20.0
+offset_top = -192.0
+offset_right = -20.0
+offset_bottom = -136.0
+grow_horizontal = 2
+grow_vertical = 0
+mouse_filter = 2
+
+[node name="SkillBtn" type="Button" parent="HUD/HUDRoot/SkillBar"]
+custom_minimum_size = Vector2(160, 56)
+layout_mode = 2
+focus_mode = 0
+theme_override_font_sizes/font_size = 18
+text = "Blaze Surge"
+
+[node name="SkillSpacer" type="Control" parent="HUD/HUDRoot/SkillBar"]
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
+
+[node name="SwitchCreatureBtn" type="Button" parent="HUD/HUDRoot/SkillBar"]
+custom_minimum_size = Vector2(190, 56)
+layout_mode = 2
+focus_mode = 0
+theme_override_font_sizes/font_size = 16
+text = "Flame Golem [Swap]"
 
 [node name="BottomBar" type="PanelContainer" parent="HUD/HUDRoot"]
 layout_mode = 1

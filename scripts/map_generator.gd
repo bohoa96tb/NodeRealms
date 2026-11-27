@@ -1,7 +1,7 @@
 class_name MapGenerator
 extends RefCounted
 
-const MERGE_DISTANCE_PX: float = 90.0
+const MERGE_DISTANCE_PX: float = 100.0
 const EDGE_THROUGH_NODE_PX: float = 28.0
 const MAX_VALIDATION_RETRIES: int = 20
 const STARTING_FACTION_TROOPS: float = 20.0

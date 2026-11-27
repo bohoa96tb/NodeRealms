@@ -15,9 +15,11 @@ var source_node: BaseNode = null
 var target_node: BaseNode = null
 var is_portal_travel: bool = false
 var is_resolved: bool = false
+var creature_manager: CreatureManager = null
 
 var _move_dir: Vector2 = Vector2.RIGHT
 var _warp_pulse: float = 0.0
+var _fire_pulse: float = 0.0
 
 @onready var troop_label: Label = $TroopLabel
 
@@ -28,13 +30,20 @@ func _ready() -> void:
 	queue_redraw()
 
 
-func setup(from_node: BaseNode, to_node: BaseNode, troop_count: int, portal_travel: bool = false) -> void:
+func setup(
+	from_node: BaseNode,
+	to_node: BaseNode,
+	troop_count: int,
+	portal_travel: bool = false,
+	mgr: CreatureManager = null
+) -> void:
 	source_node = from_node
 	target_node = to_node
 	faction = from_node.faction
 	troops = troop_count
 	power_multiplier = from_node.power_multiplier
 	is_portal_travel = portal_travel
+	creature_manager = mgr
 	global_position = from_node.global_position
 	_move_dir = (to_node.global_position - from_node.global_position).normalized()
 	if troop_label:
@@ -69,17 +78,31 @@ func _process(delta: float) -> void:
 	_move_dir = to_target / distance
 	global_position += _move_dir * step
 
+	var needs_redraw: bool = false
 	if is_portal_travel:
 		_warp_pulse = fmod(_warp_pulse + delta * 12.0, TAU)
+		needs_redraw = true
+	if _is_fire_buff_active():
+		_fire_pulse = fmod(_fire_pulse + delta * 10.0, TAU)
+		needs_redraw = true
+	if needs_redraw:
 		queue_redraw()
 
 
 func _draw() -> void:
 	var fill_color: Color = _get_fill_color()
 	var rim_color: Color = _get_rim_color()
+	var fire_active: bool = _is_fire_buff_active()
 
 	# Shadow
 	draw_circle(Vector2(0.0, 2.0), RADIUS + 2.0, Color(0.0, 0.0, 0.0, 0.35))
+
+	# FIRE buff glowing aura when Blaze Surge is active on PLAYER armies
+	if fire_active:
+		var fire_alpha: float = 0.65 + 0.3 * sin(_fire_pulse)
+		draw_circle(Vector2.ZERO, RADIUS + 7.0, Color(1.0, 0.36, 0.12, 0.28 * fire_alpha))
+		draw_arc(Vector2.ZERO, RADIUS + 4.0, 0.0, TAU, 32, Color(1.0, 0.45, 0.12, fire_alpha), 3.0, true)
+		rim_color = Color(1.0, 0.68, 0.28, 1.0)
 
 	# Portal warp aura & trail while traveling across a Portal
 	if is_portal_travel:
@@ -112,10 +135,22 @@ func _resolve_arrival() -> void:
 	is_resolved = true
 
 	if target_node != null and is_instance_valid(target_node):
-		target_node.receive_army(faction, troops, power_multiplier)
+		var effective_attack_mult: float = power_multiplier
+		if faction == BaseNode.Faction.PLAYER and creature_manager != null and is_instance_valid(creature_manager):
+			effective_attack_mult *= creature_manager.get_attack_mult()
+		target_node.receive_army(faction, troops, effective_attack_mult)
 
 	arrived.emit(self)
 	queue_free()
+
+
+func _is_fire_buff_active() -> bool:
+	return (
+		faction == BaseNode.Faction.PLAYER
+		and creature_manager != null
+		and is_instance_valid(creature_manager)
+		and creature_manager.is_element_buff_active(CreatureData.Element.FIRE)
+	)
 
 
 func _update_label() -> void:

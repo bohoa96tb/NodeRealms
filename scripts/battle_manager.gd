@@ -1,7 +1,7 @@
 class_name BattleManager
 extends Node2D
 
-const PLAY_AREA := Rect2(90.0, 190.0, 540.0, 890.0)
+const PLAY_AREA := Rect2(90.0, 185.0, 540.0, 835.0)
 const TOUCH_SELECT_PADDING: float = 16.0
 const RATIO_OPTIONS := [0.25, 0.5, 0.75, 1.0]
 const EMULATED_DEVICE_ID: int = -1
@@ -18,12 +18,16 @@ const PORTAL_GAP_LENGTH: float = 10.0
 @onready var army_groups_layer: Node2D = $ArmyGroupsLayer
 @onready var drag_line: Line2D = $DragLine
 @onready var ai_controller: AIController = $AIController
+@onready var creature_manager: CreatureManager = $CreatureManager
 
 @onready var stats_label: Label = $HUD/HUDRoot/TopBar/TopMargin/TopVBox/TopHeaderRow/StatsLabel
 @onready var seed_label: Label = $HUD/HUDRoot/TopBar/TopMargin/TopVBox/MapControlsRow/SeedLabel
 @onready var tier_label: Label = $HUD/HUDRoot/TopBar/TopMargin/TopVBox/MapControlsRow/TierLabel
 @onready var next_map_btn: Button = $HUD/HUDRoot/TopBar/TopMargin/TopVBox/MapControlsRow/NextMapBtn
 @onready var tier_btn: Button = $HUD/HUDRoot/TopBar/TopMargin/TopVBox/MapControlsRow/TierBtn
+
+@onready var skill_btn: Button = $HUD/HUDRoot/SkillBar/SkillBtn
+@onready var switch_creature_btn: Button = $HUD/HUDRoot/SkillBar/SwitchCreatureBtn
 
 @onready var btn_25: Button = $HUD/HUDRoot/BottomBar/BottomMargin/RatioContainer/Btn25
 @onready var btn_50: Button = $HUD/HUDRoot/BottomBar/BottomMargin/RatioContainer/Btn50
@@ -43,6 +47,7 @@ var current_tier: int = 1
 var _map_generator := MapGenerator.new()
 var _portal_visuals: Array[Line2D] = []
 var _portal_anim_time: float = 0.0
+var _skill_blink_time: float = 0.0
 
 var _drag_source_node: BaseNode = null
 var _hovered_target_node: BaseNode = null
@@ -53,6 +58,10 @@ var _stats_refresh_timer: float = 0.0
 
 var _style_btn_normal: StyleBoxFlat
 var _style_btn_active: StyleBoxFlat
+var _style_skill_ready: StyleBoxFlat
+var _style_skill_active: StyleBoxFlat
+var _style_skill_cooldown: StyleBoxFlat
+var _style_switch_btn: StyleBoxFlat
 
 
 func _ready() -> void:
@@ -60,10 +69,12 @@ func _ready() -> void:
 	ratio_buttons.assign([btn_25, btn_50, btn_75, btn_100])
 	_setup_hud_styles()
 	_connect_hud_signals()
+	_connect_creature_signals()
 	_select_ratio_index(1) # Default 50%
 
 	var initial_seed: int = randi_range(10000, 99999)
 	load_generated_map(initial_seed, 1)
+	_refresh_creature_hud()
 
 
 func _process(delta: float) -> void:
@@ -73,6 +84,10 @@ func _process(delta: float) -> void:
 		for line in _portal_visuals:
 			if is_instance_valid(line):
 				line.modulate.a = pulse_alpha
+
+	if creature_manager != null and creature_manager.is_skill_active():
+		_skill_blink_time += delta * 8.0
+		_update_active_skill_blink()
 
 	if _game_ended:
 		return
@@ -134,6 +149,10 @@ func load_generated_map(seed_value: int, tier: int) -> void:
 	_game_ended = false
 	_stats_refresh_timer = 0.0
 
+	if creature_manager:
+		creature_manager.set_paused(false)
+		creature_manager.reset_state()
+
 	if drag_line:
 		drag_line.visible = false
 	if result_overlay:
@@ -157,6 +176,7 @@ func load_generated_map(seed_value: int, tier: int) -> void:
 		node.position = node_info["position"]
 		node.faction = node_info["faction"] as BaseNode.Faction
 		node.troops = float(node_info["troops"])
+		node.creature_manager = creature_manager
 		nodes_layer.add_child(node)
 		all_nodes.append(node)
 		node_by_id[node.node_id] = node
@@ -181,6 +201,7 @@ func load_generated_map(seed_value: int, tier: int) -> void:
 
 	_update_map_hud_labels()
 	_update_stats_label()
+	_refresh_creature_hud()
 
 
 func spawn_army(from_node: BaseNode, to_node: BaseNode, ratio: float) -> void:
@@ -198,7 +219,7 @@ func spawn_army(from_node: BaseNode, to_node: BaseNode, ratio: float) -> void:
 	var is_portal: bool = from_node.is_portal_connected_to(to_node)
 	var army: ArmyGroup = army_group_scene.instantiate() as ArmyGroup
 	army_groups_layer.add_child(army)
-	army.setup(from_node, to_node, sent_troops, is_portal)
+	army.setup(from_node, to_node, sent_troops, is_portal, creature_manager)
 	army.arrived.connect(_on_army_arrived)
 	_update_stats_label()
 
@@ -456,6 +477,10 @@ func _show_end_screen(victory: bool) -> void:
 	_game_ended = true
 	_cancel_drag()
 
+	if creature_manager:
+		creature_manager.set_paused(true)
+	_refresh_creature_hud()
+
 	if victory:
 		result_title.text = "VICTORY"
 		result_title.add_theme_color_override("font_color", Color(0.45, 0.88, 1.0, 1.0))
@@ -536,6 +561,34 @@ func _setup_hud_styles() -> void:
 			top_btn.add_theme_stylebox_override("pressed", style_top_btn_hover)
 			top_btn.add_theme_stylebox_override("focus", style_top_btn)
 
+	_style_skill_ready = StyleBoxFlat.new()
+	_style_skill_ready.set_border_width_all(2)
+	_style_skill_ready.set_corner_radius_all(14)
+	_style_skill_ready.content_margin_left = 12.0
+	_style_skill_ready.content_margin_right = 12.0
+
+	_style_skill_active = StyleBoxFlat.new()
+	_style_skill_active.set_border_width_all(3)
+	_style_skill_active.set_corner_radius_all(14)
+	_style_skill_active.content_margin_left = 12.0
+	_style_skill_active.content_margin_right = 12.0
+
+	_style_skill_cooldown = StyleBoxFlat.new()
+	_style_skill_cooldown.bg_color = Color(0.12, 0.14, 0.2, 0.85)
+	_style_skill_cooldown.border_color = Color(0.28, 0.32, 0.4, 0.75)
+	_style_skill_cooldown.set_border_width_all(2)
+	_style_skill_cooldown.set_corner_radius_all(14)
+	_style_skill_cooldown.content_margin_left = 12.0
+	_style_skill_cooldown.content_margin_right = 12.0
+
+	_style_switch_btn = StyleBoxFlat.new()
+	_style_switch_btn.bg_color = Color(0.13, 0.17, 0.24, 0.94)
+	_style_switch_btn.border_color = Color(0.45, 0.56, 0.72, 0.9)
+	_style_switch_btn.set_border_width_all(2)
+	_style_switch_btn.set_corner_radius_all(14)
+	_style_switch_btn.content_margin_left = 12.0
+	_style_switch_btn.content_margin_right = 12.0
+
 
 func _connect_hud_signals() -> void:
 	for i in range(ratio_buttons.size()):
@@ -548,6 +601,114 @@ func _connect_hud_signals() -> void:
 		next_map_btn.pressed.connect(_on_next_map_pressed)
 	if tier_btn:
 		tier_btn.pressed.connect(_on_tier_button_pressed)
+	if skill_btn:
+		skill_btn.pressed.connect(_on_skill_button_pressed)
+	if switch_creature_btn:
+		switch_creature_btn.pressed.connect(_on_switch_creature_pressed)
+
+
+func _connect_creature_signals() -> void:
+	if creature_manager == null:
+		return
+	creature_manager.skill_activated.connect(_on_skill_activated)
+	creature_manager.skill_ended.connect(_on_skill_ended)
+	creature_manager.cooldown_updated.connect(_on_cooldown_updated)
+	creature_manager.creature_changed.connect(_on_creature_changed)
+
+
+func _refresh_creature_hud() -> void:
+	if creature_manager == null:
+		return
+
+	var creature: Dictionary = creature_manager.get_equipped_creature()
+	var base_col: Color = creature["color"]
+	var border_col: Color = creature["border_color"]
+
+	if switch_creature_btn:
+		switch_creature_btn.text = "%s [Swap]" % creature["name"]
+		_style_switch_btn.border_color = border_col
+		switch_creature_btn.add_theme_stylebox_override("normal", _style_switch_btn)
+		switch_creature_btn.add_theme_stylebox_override("hover", _style_switch_btn)
+		switch_creature_btn.add_theme_stylebox_override("pressed", _style_switch_btn)
+		switch_creature_btn.add_theme_stylebox_override("focus", _style_switch_btn)
+		switch_creature_btn.add_theme_color_override("font_color", Color(0.95, 0.97, 1.0, 1.0))
+
+	if skill_btn == null:
+		return
+
+	_style_skill_ready.bg_color = base_col
+	_style_skill_ready.border_color = border_col
+	_style_skill_active.bg_color = base_col.darkened(0.15)
+	_style_skill_active.border_color = border_col
+
+	if creature_manager.is_skill_active():
+		skill_btn.disabled = true
+		skill_btn.modulate = Color(1.0, 1.0, 1.0, 1.0)
+		skill_btn.text = "ACTIVE (%ds)" % maxi(1, ceili(creature_manager.active_timer))
+		skill_btn.add_theme_stylebox_override("disabled", _style_skill_active)
+		skill_btn.add_theme_color_override("font_disabled_color", Color.WHITE)
+	elif creature_manager.cooldown_timer > 0.0:
+		skill_btn.disabled = true
+		skill_btn.modulate = Color(1.0, 1.0, 1.0, 0.65)
+		skill_btn.text = "%ds" % maxi(1, ceili(creature_manager.cooldown_timer))
+		skill_btn.add_theme_stylebox_override("disabled", _style_skill_cooldown)
+		skill_btn.add_theme_color_override("font_disabled_color", Color(0.72, 0.78, 0.86, 1.0))
+	else:
+		skill_btn.disabled = _game_ended
+		skill_btn.modulate = Color(1.0, 1.0, 1.0, 1.0)
+		skill_btn.text = creature["skill_name"]
+		skill_btn.add_theme_stylebox_override("normal", _style_skill_ready)
+		skill_btn.add_theme_stylebox_override("hover", _style_skill_ready)
+		skill_btn.add_theme_stylebox_override("pressed", _style_skill_ready)
+		skill_btn.add_theme_stylebox_override("focus", _style_skill_ready)
+		skill_btn.add_theme_stylebox_override("disabled", _style_skill_cooldown)
+		skill_btn.add_theme_color_override("font_color", Color.WHITE)
+
+
+func _update_active_skill_blink() -> void:
+	if _style_skill_active == null or creature_manager == null:
+		return
+	var creature: Dictionary = creature_manager.get_equipped_creature()
+	var border_col: Color = creature["border_color"]
+	var blink: float = 0.5 + 0.5 * sin(_skill_blink_time)
+	_style_skill_active.border_color = border_col.lerp(Color.WHITE, blink)
+
+
+func _on_skill_button_pressed() -> void:
+	if _game_ended or creature_manager == null:
+		return
+	var player_nodes: Array[BaseNode] = get_nodes_by_faction(BaseNode.Faction.PLAYER)
+	creature_manager.activate_skill(player_nodes)
+
+
+func _on_switch_creature_pressed() -> void:
+	if _game_ended or creature_manager == null:
+		return
+	creature_manager.cycle_creature()
+
+
+func _on_skill_activated(_creature: Dictionary) -> void:
+	_skill_blink_time = 0.0
+	_update_stats_label()
+	_refresh_creature_hud()
+
+
+func _on_skill_ended(_creature: Dictionary) -> void:
+	for node in all_nodes:
+		if is_instance_valid(node):
+			node.queue_redraw()
+	_refresh_creature_hud()
+
+
+func _on_cooldown_updated(_remaining_cooldown: float, _remaining_active: float) -> void:
+	_refresh_creature_hud()
+
+
+func _on_creature_changed(_creature: Dictionary) -> void:
+	for node in all_nodes:
+		if is_instance_valid(node):
+			node.queue_redraw()
+	_refresh_creature_hud()
 
 
 func _on_ratio_button_pressed(index: int) -> void:

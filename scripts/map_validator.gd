@@ -3,7 +3,7 @@ extends RefCounted
 
 const MIN_NODES: int = 4
 const MAX_NODES: int = 25
-const MIN_NODE_DISTANCE: float = 85.0
+const MIN_NODE_DISTANCE: float = 110.0
 const MIN_FACTION_GRAPH_HOPS: int = 2
 
 
