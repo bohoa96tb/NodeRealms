@@ -118,6 +118,7 @@ var _hovered_target_node: BaseNode = null
 var _active_touch_index: int = -1
 var _is_mouse_dragging: bool = false
 var _game_ended: bool = false
+var _result_recorded: bool = false
 var _stats_refresh_timer: float = 0.0
 
 var _tutorial_step: TutorialStep = TutorialStep.NONE
@@ -281,6 +282,7 @@ func load_generated_map(
 	_cancel_drag()
 	_kill_tutorial_tween()
 	_game_ended = false
+	_result_recorded = false
 	_stats_refresh_timer = 0.0
 	_match_elapsed_time = 0.0
 	_player_lost_base = false
@@ -847,6 +849,8 @@ func _are_all_nodes_captured_by_player() -> bool:
 
 
 func _show_end_screen(victory: bool) -> void:
+	if _game_ended:
+		return
 	_game_ended = true
 	_cancel_drag()
 	_hide_tutorial_banner()
@@ -884,7 +888,9 @@ func _show_end_screen(victory: bool) -> void:
 			var bonus_essence: int = roundi(float(base_essence) * habitat_ratio)
 			var total_essence: int = base_essence + bonus_essence
 
-			SaveManager.record_campaign_victory(level_id, total_gold, total_essence)
+			if not _result_recorded:
+				_result_recorded = true
+				SaveManager.record_campaign_victory(level_id, total_gold, total_essence)
 
 			result_subtitle.text = "LV %d: %s Cleared! (%s)" % [level_id, level_name, time_str]
 			reward_details_label.text = (
@@ -904,13 +910,18 @@ func _show_end_screen(victory: bool) -> void:
 			next_level_btn.visible = level_id < CampaignData.TOTAL_LEVELS
 			restart_button.text = "Replay"
 		elif _is_boss_test_mode:
+			if not _result_recorded:
+				_result_recorded = true
+				SaveManager.record_boss_victory()
 			result_subtitle.text = "Verdant Overlord Defeated! (%s)" % time_str
 			reward_details_label.text = "Boss Practice Cleared!\n(Unlock LV 15 in Campaign to claim +300 Gold & +60 Essence)"
 			reward_details_label.visible = true
 			next_level_btn.visible = false
 			restart_button.text = "Replay"
 		else:
-			SaveManager.record_sandbox_victory()
+			if not _result_recorded:
+				_result_recorded = true
+				SaveManager.record_sandbox_victory()
 			result_subtitle.text = "All enemy realms conquered! (%s)" % time_str
 			reward_details_label.text = "Sandbox Seed #%d (Tier %d) Cleared!" % [current_seed, current_tier]
 			reward_details_label.visible = true
@@ -918,7 +929,9 @@ func _show_end_screen(victory: bool) -> void:
 			restart_button.text = "Replay"
 	else:
 		AudioManager.play_defeat()
-		SaveManager.record_defeat()
+		if not _result_recorded:
+			_result_recorded = true
+			SaveManager.record_defeat()
 		result_title.text = "DEFEAT"
 		result_title.add_theme_color_override("font_color", Color(1.0, 0.42, 0.42, 1.0))
 		result_subtitle.text = "Your realms have fallen!"

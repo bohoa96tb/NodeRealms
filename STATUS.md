@@ -4,7 +4,7 @@
 **Target Platform:** Android (`720x1280` portrait, `canvas_items` / `expand`, `import_etc2_astc=true`, one-handed touch)  
 **Main Scene:** `res://scenes/MainHubScene.tscn`  
 **Autoloads:** `SaveManager` (`res://scripts/save_manager.gd`), `AudioManager` (`res://scripts/audio_manager.gd`)  
-**Current Milestone:** ART P1 (Battle Map Visual Upgrade Completed; Next: P3 Part 2 Task 4 — Player Profile & Statistics Dialog) (`fce7c48`+)
+**Current Milestone:** P3 Part 2 Task 4 (Player Profile & Statistics Dialog Completed; Next: Optional Post-Verdant Replayability or P4 Store Readiness) (`b60f695`+)
 
 ---
 
@@ -89,7 +89,7 @@
    - Extended bottom safe-area inset handling to `BattleScene` (`BottomBar`, `BottomMargin`, and `SkillBar` shifted up without overlapping `PLAY_AREA`), with automatic re-application on viewport `size_changed`.
 3. **Onboarding & Player Statistics:**
    - **First-Match Interactive Tutorial Hints (Completed):** Lightweight, non-blocking (`MOUSE_FILTER_IGNORE` on banner/labels, `MOUSE_FILTER_STOP` on `Skip`/`Got it` button), safe-area-aware banner directly under `TopBar` in `BattleScene` guiding 1-hand drag dispatch, Creature Skill activation, and contextual Portal Warp (`1.8x`), auto-hiding on Victory/Defeat and persisting `tutorial_completed` / `portal_hint_seen` immediately in `SaveManager` (default `false` backfill for older saves).
-   - **Player Profile / Statistics Dialog (Next):** Accessible from `MainHubScene` (`Wins`, `Losses`, `Current Streak`, `Best Streak`, plus optional legacy `CampaignScene` cleanup decision).
+   - **Player Profile / Statistics Dialog (Completed):** Added `ProfileBtn` in `MainHubScene` `TopBar` and Fantasy 2.5D `ProfileOverlay` dialog (`ProfileEmblem`, rank title, equipped guardian, Verdant Realm campaign `ProgressBar` + win rate, and 6 stat cards with custom vector `StatIcon`s for `Total Wins`, `Total Losses`, `Current Streak`, `Best Streak`, `Total Battles`, and `Boss Victories`), backed by `SaveManager.get_statistics()` with `boss_victories` backward-compatible backfill (`0`) and duplicate match-end recording guard (`_result_recorded`) in `BattleManager`. Supports Safe Area margins, outside-tap close, and Android Back (`NOTIFICATION_WM_GO_BACK_REQUEST` / `ui_cancel`). *(Legacy `CampaignScene.tscn` kept untouched for now.)*
 4. **Post-Verdant Replayability (Optional P3):**
    - Daily Seed Challenge or Endless Skirmish mode using `MapGenerator` with daily rewards.
 

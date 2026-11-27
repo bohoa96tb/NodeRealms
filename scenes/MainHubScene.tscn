@@ -1,4 +1,4 @@
-[gd_scene load_steps=5 format=3]
+[gd_scene load_steps=11 format=3]
 
 [ext_resource type="Script" path="res://scripts/main_hub.gd" id="1_main_hub"]
 [ext_resource type="Script" path="res://scripts/kingdom_island.gd" id="2_kingdom_island"]
@@ -12,6 +12,73 @@ border_color = Color(0.22, 0.3, 0.42, 0.9)
 bg_color = Color(0.09, 0.12, 0.18, 0.96)
 border_width_top = 2
 border_color = Color(0.22, 0.3, 0.42, 0.9)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_profile_panel"]
+bg_color = Color(0.068, 0.112, 0.175, 0.98)
+border_width_left = 3
+border_width_top = 3
+border_width_right = 3
+border_width_bottom = 3
+border_color = Color(0.94, 0.77, 0.33, 0.98)
+corner_radius_top_left = 20
+corner_radius_top_right = 20
+corner_radius_bottom_right = 20
+corner_radius_bottom_left = 20
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_profile_card"]
+bg_color = Color(0.095, 0.155, 0.235, 0.96)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.26, 0.56, 0.58, 0.9)
+corner_radius_top_left = 14
+corner_radius_top_right = 14
+corner_radius_bottom_right = 14
+corner_radius_bottom_left = 14
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_profile_progress_bg"]
+bg_color = Color(0.05, 0.08, 0.13, 0.96)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.25, 0.4, 0.52, 0.85)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_profile_progress_fill"]
+bg_color = Color(0.18, 0.84, 0.68, 1)
+corner_radius_top_left = 7
+corner_radius_top_right = 7
+corner_radius_bottom_right = 7
+corner_radius_bottom_left = 7
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_profile_close"]
+bg_color = Color(0.14, 0.44, 0.62, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.94, 0.8, 0.38, 1)
+corner_radius_top_left = 14
+corner_radius_top_right = 14
+corner_radius_bottom_right = 14
+corner_radius_bottom_left = 14
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_profile_close_hover"]
+bg_color = Color(0.19, 0.56, 0.78, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(1, 0.9, 0.56, 1)
+corner_radius_top_left = 14
+corner_radius_top_right = 14
+corner_radius_bottom_right = 14
+corner_radius_bottom_left = 14
 
 [node name="MainHubScene" type="Control"]
 layout_mode = 3
@@ -42,14 +109,14 @@ theme_override_styles/panel = SubResource("StyleBoxFlat_topbar")
 
 [node name="TopMargin" type="MarginContainer" parent="TopBar"]
 layout_mode = 2
-theme_override_constants/margin_left = 22
+theme_override_constants/margin_left = 18
 theme_override_constants/margin_top = 12
-theme_override_constants/margin_right = 22
+theme_override_constants/margin_right = 18
 theme_override_constants/margin_bottom = 12
 
 [node name="TopRow" type="HBoxContainer" parent="TopBar/TopMargin"]
 layout_mode = 2
-theme_override_constants/separation = 14
+theme_override_constants/separation = 10
 
 [node name="RealmVBox" type="VBoxContainer" parent="TopBar/TopMargin/TopRow"]
 layout_mode = 2
@@ -60,14 +127,15 @@ alignment = 1
 [node name="TitleLabel" type="Label" parent="TopBar/TopMargin/TopRow/RealmVBox"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.92, 0.96, 1, 1)
-theme_override_font_sizes/font_size = 25
+theme_override_font_sizes/font_size = 24
 text = "NODE REALMS"
 
 [node name="KingdomLvLabel" type="Label" parent="TopBar/TopMargin/TopRow/RealmVBox"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.58, 0.78, 0.94, 1)
-theme_override_font_sizes/font_size = 14
+theme_override_font_sizes/font_size = 13
 text = "KINGDOM LV 1  |  VERDANT REALM (0/15)"
+clip_text = true
 
 [node name="ResourcesVBox" type="VBoxContainer" parent="TopBar/TopMargin/TopRow"]
 layout_mode = 2
@@ -77,23 +145,32 @@ alignment = 1
 [node name="GoldLabel" type="Label" parent="TopBar/TopMargin/TopRow/ResourcesVBox"]
 layout_mode = 2
 theme_override_colors/font_color = Color(1, 0.82, 0.32, 1)
-theme_override_font_sizes/font_size = 20
+theme_override_font_sizes/font_size = 18
 text = "GOLD: 100"
 horizontal_alignment = 2
 
 [node name="EssenceLabel" type="Label" parent="TopBar/TopMargin/TopRow/ResourcesVBox"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.36, 0.94, 0.78, 1)
-theme_override_font_sizes/font_size = 18
+theme_override_font_sizes/font_size = 17
 text = "ESSENCE: 0"
 horizontal_alignment = 2
 
-[node name="SfxBtn" type="Button" parent="TopBar/TopMargin/TopRow"]
-custom_minimum_size = Vector2(92, 42)
+[node name="ProfileBtn" type="Button" parent="TopBar/TopMargin/TopRow"]
+custom_minimum_size = Vector2(88, 42)
 layout_mode = 2
 size_flags_vertical = 4
 focus_mode = 0
+theme_override_colors/font_color = Color(1, 0.92, 0.68, 1)
 theme_override_font_sizes/font_size = 14
+text = "Profile"
+
+[node name="SfxBtn" type="Button" parent="TopBar/TopMargin/TopRow"]
+custom_minimum_size = Vector2(82, 42)
+layout_mode = 2
+size_flags_vertical = 4
+focus_mode = 0
+theme_override_font_sizes/font_size = 13
 text = "SFX: ON"
 
 [node name="ContentArea" type="Control" parent="."]
@@ -260,3 +337,146 @@ size_flags_horizontal = 3
 focus_mode = 0
 theme_override_font_sizes/font_size = 20
 text = "Kingdom"
+
+[node name="ProfileOverlay" type="ColorRect" parent="."]
+visible = false
+z_index = 20
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.02, 0.04, 0.07, 0.82)
+
+[node name="ProfileSafeMargin" type="MarginContainer" parent="ProfileOverlay"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_constants/margin_left = 20
+theme_override_constants/margin_top = 24
+theme_override_constants/margin_right = 20
+theme_override_constants/margin_bottom = 24
+
+[node name="ProfileCenter" type="CenterContainer" parent="ProfileOverlay/ProfileSafeMargin"]
+layout_mode = 2
+mouse_filter = 2
+
+[node name="ProfilePanel" type="PanelContainer" parent="ProfileOverlay/ProfileSafeMargin/ProfileCenter"]
+custom_minimum_size = Vector2(616, 0)
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_profile_panel")
+
+[node name="ProfileInnerMargin" type="MarginContainer" parent="ProfileOverlay/ProfileSafeMargin/ProfileCenter/ProfilePanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 22
+theme_override_constants/margin_top = 20
+theme_override_constants/margin_right = 22
+theme_override_constants/margin_bottom = 20
+
+[node name="ProfileVBox" type="VBoxContainer" parent="ProfileOverlay/ProfileSafeMargin/ProfileCenter/ProfilePanel/ProfileInnerMargin"]
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="ProfileHeaderRow" type="HBoxContainer" parent="ProfileOverlay/ProfileSafeMargin/ProfileCenter/ProfilePanel/ProfileInnerMargin/ProfileVBox"]
+layout_mode = 2
+theme_override_constants/separation = 14
+alignment = 1
+
+[node name="ProfileEmblemSlot" type="CenterContainer" parent="ProfileOverlay/ProfileSafeMargin/ProfileCenter/ProfilePanel/ProfileInnerMargin/ProfileVBox/ProfileHeaderRow"]
+custom_minimum_size = Vector2(78, 78)
+layout_mode = 2
+
+[node name="ProfileTitleVBox" type="VBoxContainer" parent="ProfileOverlay/ProfileSafeMargin/ProfileCenter/ProfilePanel/ProfileInnerMargin/ProfileVBox/ProfileHeaderRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 3
+alignment = 1
+
+[node name="ProfileRankLabel" type="Label" parent="ProfileOverlay/ProfileSafeMargin/ProfileCenter/ProfilePanel/ProfileInnerMargin/ProfileVBox/ProfileHeaderRow/ProfileTitleVBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.98, 0.84, 0.38, 1)
+theme_override_font_sizes/font_size = 22
+text = "REALM COMMANDER"
+
+[node name="ProfileKingdomLabel" type="Label" parent="ProfileOverlay/ProfileSafeMargin/ProfileCenter/ProfilePanel/ProfileInnerMargin/ProfileVBox/ProfileHeaderRow/ProfileTitleVBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.55, 0.9, 1, 1)
+theme_override_font_sizes/font_size = 15
+text = "Kingdom LV 1  |  Sky Warden"
+
+[node name="ProfileCreatureLabel" type="Label" parent="ProfileOverlay/ProfileSafeMargin/ProfileCenter/ProfilePanel/ProfileInnerMargin/ProfileVBox/ProfileHeaderRow/ProfileTitleVBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.62, 0.94, 0.78, 1)
+theme_override_font_sizes/font_size = 13
+text = "Guardian: Flame Golem (LV 1)"
+
+[node name="CampaignCard" type="PanelContainer" parent="ProfileOverlay/ProfileSafeMargin/ProfileCenter/ProfilePanel/ProfileInnerMargin/ProfileVBox"]
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_profile_card")
+
+[node name="CampaignCardMargin" type="MarginContainer" parent="ProfileOverlay/ProfileSafeMargin/ProfileCenter/ProfilePanel/ProfileInnerMargin/ProfileVBox/CampaignCard"]
+layout_mode = 2
+theme_override_constants/margin_left = 14
+theme_override_constants/margin_top = 10
+theme_override_constants/margin_right = 14
+theme_override_constants/margin_bottom = 10
+
+[node name="CampaignCardVBox" type="VBoxContainer" parent="ProfileOverlay/ProfileSafeMargin/ProfileCenter/ProfilePanel/ProfileInnerMargin/ProfileVBox/CampaignCard/CampaignCardMargin"]
+layout_mode = 2
+theme_override_constants/separation = 7
+
+[node name="CampaignHeaderRow" type="HBoxContainer" parent="ProfileOverlay/ProfileSafeMargin/ProfileCenter/ProfilePanel/ProfileInnerMargin/ProfileVBox/CampaignCard/CampaignCardMargin/CampaignCardVBox"]
+layout_mode = 2
+
+[node name="CampaignCardTitle" type="Label" parent="ProfileOverlay/ProfileSafeMargin/ProfileCenter/ProfilePanel/ProfileInnerMargin/ProfileVBox/CampaignCard/CampaignCardMargin/CampaignCardVBox/CampaignHeaderRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.92, 0.96, 1, 1)
+theme_override_font_sizes/font_size = 15
+text = "VERDANT REALM PROGRESS"
+
+[node name="CampaignCountLabel" type="Label" parent="ProfileOverlay/ProfileSafeMargin/ProfileCenter/ProfilePanel/ProfileInnerMargin/ProfileVBox/CampaignCard/CampaignCardMargin/CampaignCardVBox/CampaignHeaderRow"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.45, 0.95, 0.78, 1)
+theme_override_font_sizes/font_size = 16
+text = "0 / 15"
+horizontal_alignment = 2
+
+[node name="CampaignProgressBar" type="ProgressBar" parent="ProfileOverlay/ProfileSafeMargin/ProfileCenter/ProfilePanel/ProfileInnerMargin/ProfileVBox/CampaignCard/CampaignCardMargin/CampaignCardVBox"]
+custom_minimum_size = Vector2(0, 14)
+layout_mode = 2
+theme_override_styles/background = SubResource("StyleBoxFlat_profile_progress_bg")
+theme_override_styles/fill = SubResource("StyleBoxFlat_profile_progress_fill")
+max_value = 15.0
+show_percentage = false
+
+[node name="CampaignMetaLabel" type="Label" parent="ProfileOverlay/ProfileSafeMargin/ProfileCenter/ProfilePanel/ProfileInnerMargin/ProfileVBox/CampaignCard/CampaignCardMargin/CampaignCardVBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.72, 0.84, 0.94, 1)
+theme_override_font_sizes/font_size = 13
+text = "Unlocked Stage: LV 1  |  Win Rate: --"
+
+[node name="StatsGrid" type="GridContainer" parent="ProfileOverlay/ProfileSafeMargin/ProfileCenter/ProfilePanel/ProfileInnerMargin/ProfileVBox"]
+layout_mode = 2
+theme_override_constants/h_separation = 12
+theme_override_constants/v_separation = 10
+columns = 2
+
+[node name="CloseRow" type="CenterContainer" parent="ProfileOverlay/ProfileSafeMargin/ProfileCenter/ProfilePanel/ProfileInnerMargin/ProfileVBox"]
+layout_mode = 2
+
+[node name="CloseProfileBtn" type="Button" parent="ProfileOverlay/ProfileSafeMargin/ProfileCenter/ProfilePanel/ProfileInnerMargin/ProfileVBox/CloseRow"]
+custom_minimum_size = Vector2(300, 58)
+layout_mode = 2
+focus_mode = 0
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 20
+theme_override_styles/normal = SubResource("StyleBoxFlat_profile_close")
+theme_override_styles/hover = SubResource("StyleBoxFlat_profile_close_hover")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_profile_close_hover")
+text = "Close"

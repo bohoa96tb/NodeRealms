@@ -14,7 +14,21 @@ enum HubTab { CAMPAIGN, CREATURES, KINGDOM }
 @onready var kingdom_lv_label: Label = $TopBar/TopMargin/TopRow/RealmVBox/KingdomLvLabel
 @onready var gold_label: Label = $TopBar/TopMargin/TopRow/ResourcesVBox/GoldLabel
 @onready var essence_label: Label = $TopBar/TopMargin/TopRow/ResourcesVBox/EssenceLabel
+@onready var profile_btn: Button = $TopBar/TopMargin/TopRow/ProfileBtn
 @onready var sfx_btn: Button = $TopBar/TopMargin/TopRow/SfxBtn
+
+@onready var profile_overlay: ColorRect = $ProfileOverlay
+@onready var profile_safe_margin: MarginContainer = $ProfileOverlay/ProfileSafeMargin
+@onready var profile_panel: PanelContainer = $ProfileOverlay/ProfileSafeMargin/ProfileCenter/ProfilePanel
+@onready var profile_emblem_slot: CenterContainer = $ProfileOverlay/ProfileSafeMargin/ProfileCenter/ProfilePanel/ProfileInnerMargin/ProfileVBox/ProfileHeaderRow/ProfileEmblemSlot
+@onready var profile_rank_label: Label = $ProfileOverlay/ProfileSafeMargin/ProfileCenter/ProfilePanel/ProfileInnerMargin/ProfileVBox/ProfileHeaderRow/ProfileTitleVBox/ProfileRankLabel
+@onready var profile_kingdom_label: Label = $ProfileOverlay/ProfileSafeMargin/ProfileCenter/ProfilePanel/ProfileInnerMargin/ProfileVBox/ProfileHeaderRow/ProfileTitleVBox/ProfileKingdomLabel
+@onready var profile_creature_label: Label = $ProfileOverlay/ProfileSafeMargin/ProfileCenter/ProfilePanel/ProfileInnerMargin/ProfileVBox/ProfileHeaderRow/ProfileTitleVBox/ProfileCreatureLabel
+@onready var campaign_count_label: Label = $ProfileOverlay/ProfileSafeMargin/ProfileCenter/ProfilePanel/ProfileInnerMargin/ProfileVBox/CampaignCard/CampaignCardMargin/CampaignCardVBox/CampaignHeaderRow/CampaignCountLabel
+@onready var campaign_progress_bar: ProgressBar = $ProfileOverlay/ProfileSafeMargin/ProfileCenter/ProfilePanel/ProfileInnerMargin/ProfileVBox/CampaignCard/CampaignCardMargin/CampaignCardVBox/CampaignProgressBar
+@onready var campaign_meta_label: Label = $ProfileOverlay/ProfileSafeMargin/ProfileCenter/ProfilePanel/ProfileInnerMargin/ProfileVBox/CampaignCard/CampaignCardMargin/CampaignCardVBox/CampaignMetaLabel
+@onready var stats_grid: GridContainer = $ProfileOverlay/ProfileSafeMargin/ProfileCenter/ProfilePanel/ProfileInnerMargin/ProfileVBox/StatsGrid
+@onready var close_profile_btn: Button = $ProfileOverlay/ProfileSafeMargin/ProfileCenter/ProfilePanel/ProfileInnerMargin/ProfileVBox/CloseRow/CloseProfileBtn
 
 @onready var content_area: Control = $ContentArea
 @onready var campaign_tab: Control = $ContentArea/CampaignTab
@@ -38,6 +52,8 @@ enum HubTab { CAMPAIGN, CREATURES, KINGDOM }
 var _current_tab: HubTab = HubTab.CAMPAIGN
 var _mine_refresh_timer: float = 0.0
 var _mine_claim_btn: Button = null
+var _profile_emblem: ProfileEmblem = null
+var _profile_tween: Tween = null
 
 var _style_completed: StyleBoxFlat
 var _style_completed_hover: StyleBoxFlat
@@ -120,12 +136,136 @@ class CreatureEmblem extends Control:
 				draw_arc(center, 9.0, 0.0, TAU, 24, border_color, 2.5, true)
 
 
+class ProfileEmblem extends Control:
+	var kingdom_level: int = 1
+	var cleared_levels: int = 0
+
+	func _ready() -> void:
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+		custom_minimum_size = Vector2(78, 78)
+
+	func _draw() -> void:
+		var center := size * 0.5
+		# Soft emerald-cyan aura
+		draw_circle(center, 36.0, Color(0.14, 0.65, 0.78, 0.22))
+		draw_arc(center, 34.0, 0.0, TAU, 36, Color(0.32, 0.92, 0.85, 0.65), 2.0, true)
+
+		# Fantasy heater shield silhouette
+		var shield_pts := PackedVector2Array([
+			center + Vector2(-24.0, -22.0),
+			center + Vector2(0.0, -28.0),
+			center + Vector2(24.0, -22.0),
+			center + Vector2(22.0, 6.0),
+			center + Vector2(0.0, 29.0),
+			center + Vector2(-22.0, 6.0),
+		])
+		draw_colored_polygon(shield_pts, Color(0.09, 0.19, 0.31, 1.0))
+		draw_polyline(shield_pts + PackedVector2Array([shield_pts[0]]), Color(0.94, 0.78, 0.34, 1.0), 2.6, true)
+
+		# Stylized floating citadel keep inside shield
+		var tower_pts := PackedVector2Array([
+			center + Vector2(-9.0, 12.0),
+			center + Vector2(-9.0, -4.0),
+			center + Vector2(0.0, -15.0),
+			center + Vector2(9.0, -4.0),
+			center + Vector2(9.0, 12.0),
+		])
+		draw_colored_polygon(tower_pts, Color(0.22, 0.64, 0.94, 1.0))
+		draw_circle(center + Vector2(0.0, -1.0), 4.0, Color(0.45, 0.96, 0.88, 1.0))
+
+		# Kingdom level stars along lower rim
+		var pip_count: int = clampi(kingdom_level, 1, 5)
+		var span: float = float(pip_count - 1) * 7.5
+		for i in range(pip_count):
+			var px: float = center.x - span * 0.5 + float(i) * 7.5
+			draw_circle(Vector2(px, center.y + 18.5), 2.3, Color(1.0, 0.86, 0.35, 1.0))
+
+
+class StatIcon extends Control:
+	enum Kind { WINS, LOSSES, STREAK, BEST_STREAK, BATTLES, BOSS }
+
+	var kind: Kind = Kind.WINS
+	var accent: Color = Color(0.35, 0.92, 0.74, 1.0)
+
+	func _ready() -> void:
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+		custom_minimum_size = Vector2(36, 36)
+
+	func _draw() -> void:
+		var c := size * 0.5
+		draw_circle(c, 16.0, Color(accent.r, accent.g, accent.b, 0.16))
+		draw_arc(c, 15.5, 0.0, TAU, 28, Color(accent.r, accent.g, accent.b, 0.65), 1.6, true)
+
+		match kind:
+			Kind.WINS:
+				# Radiant victory star / laurel crest
+				draw_arc(c + Vector2(0.0, 1.0), 9.5, 0.3, PI - 0.3, 18, Color(0.95, 0.80, 0.32, 1.0), 2.2, true)
+				draw_colored_polygon(PackedVector2Array([
+					c + Vector2(0.0, -10.5),
+					c + Vector2(4.0, -1.5),
+					c + Vector2(0.0, 6.5),
+					c + Vector2(-4.0, -1.5),
+				]), accent)
+			Kind.LOSSES:
+				# Cracked shield
+				var sh := PackedVector2Array([
+					c + Vector2(-7.5, -7.5),
+					c + Vector2(7.5, -7.5),
+					c + Vector2(6.5, 2.0),
+					c + Vector2(0.0, 9.5),
+					c + Vector2(-6.5, 2.0),
+				])
+				draw_colored_polygon(sh, Color(accent.r, accent.g, accent.b, 0.45))
+				draw_polyline(sh + PackedVector2Array([sh[0]]), accent, 2.0, true)
+				draw_line(c + Vector2(-3.0, -4.0), c + Vector2(2.5, 4.5), Color(0.08, 0.10, 0.15, 0.95), 2.2, true)
+			Kind.STREAK:
+				# Stylized flame
+				draw_colored_polygon(PackedVector2Array([
+					c + Vector2(0.0, -10.0),
+					c + Vector2(7.0, 1.0),
+					c + Vector2(3.5, 9.0),
+					c + Vector2(-3.5, 9.0),
+					c + Vector2(-7.0, 1.0),
+				]), accent)
+				draw_circle(c + Vector2(0.0, 3.0), 3.2, Color(1.0, 0.94, 0.65, 1.0))
+			Kind.BEST_STREAK:
+				# 3-point royal crown
+				draw_colored_polygon(PackedVector2Array([
+					c + Vector2(-8.5, 6.5),
+					c + Vector2(-9.5, -5.0),
+					c + Vector2(-3.5, 0.5),
+					c + Vector2(0.0, -8.0),
+					c + Vector2(3.5, 0.5),
+					c + Vector2(9.5, -5.0),
+					c + Vector2(8.5, 6.5),
+				]), accent)
+				draw_circle(c + Vector2(0.0, 2.5), 2.4, Color(0.35, 0.95, 1.0, 1.0))
+			Kind.BATTLES:
+				# Crossed blades
+				draw_line(c + Vector2(-7.5, 7.5), c + Vector2(7.5, -7.5), accent, 2.5, true)
+				draw_line(c + Vector2(7.5, 7.5), c + Vector2(-7.5, -7.5), Color(0.85, 0.92, 1.0, 0.95), 2.5, true)
+				draw_circle(c, 2.8, Color(0.95, 0.80, 0.35, 1.0))
+			Kind.BOSS:
+				# Overlord spiked crown
+				draw_colored_polygon(PackedVector2Array([
+					c + Vector2(-8.0, 7.0),
+					c + Vector2(-10.0, -4.0),
+					c + Vector2(-4.0, 1.0),
+					c + Vector2(0.0, -9.0),
+					c + Vector2(4.0, 1.0),
+					c + Vector2(10.0, -4.0),
+					c + Vector2(8.0, 7.0),
+				]), accent)
+				draw_circle(c + Vector2(0.0, 2.0), 2.8, Color(1.0, 0.45, 0.62, 1.0))
+
+
 func _ready() -> void:
 	_apply_safe_area_padding()
 	var vp: Viewport = get_viewport()
 	if vp != null and not vp.size_changed.is_connected(_apply_safe_area_padding):
 		vp.size_changed.connect(_apply_safe_area_padding)
 	_setup_styles()
+	_setup_profile_dialog()
 	_connect_signals()
 	_refresh_top_bar()
 	_populate_campaign_grid()
@@ -134,6 +274,23 @@ func _ready() -> void:
 
 	var start_tab: int = clampi(SaveManager.last_hub_tab, 0, 2)
 	_switch_tab(start_tab as HubTab)
+
+
+func _exit_tree() -> void:
+	_kill_profile_tween()
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_GO_BACK_REQUEST:
+		if profile_overlay and profile_overlay.visible:
+			_close_profile_dialog()
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if profile_overlay and profile_overlay.visible:
+		if event.is_action_pressed("ui_cancel"):
+			_close_profile_dialog()
+			get_viewport().set_input_as_handled()
 
 
 func _apply_safe_area_padding() -> void:
@@ -171,6 +328,9 @@ func _apply_safe_area_padding() -> void:
 	if content_area:
 		content_area.offset_top = final_top_height
 		content_area.offset_bottom = -final_bottom_height
+	if profile_safe_margin:
+		profile_safe_margin.add_theme_constant_override("margin_top", maxi(20, final_top_margin + 8))
+		profile_safe_margin.add_theme_constant_override("margin_bottom", maxi(20, final_bottom_margin + 8))
 
 
 func _process(delta: float) -> void:
@@ -246,23 +406,46 @@ func _setup_styles() -> void:
 		test_boss_btn.add_theme_stylebox_override("pressed", boss_hover)
 		test_boss_btn.add_theme_stylebox_override("focus", boss_st)
 
+	if profile_btn:
+		var prof_st := _make_action_button_style(Color(0.12, 0.34, 0.38, 0.96), Color(0.94, 0.77, 0.33, 1.0))
+		var prof_hover := prof_st.duplicate() as StyleBoxFlat
+		prof_hover.bg_color = Color(0.18, 0.46, 0.50, 1.0)
+		prof_hover.border_color = Color(1.0, 0.90, 0.54, 1.0)
+		profile_btn.add_theme_stylebox_override("normal", prof_st)
+		profile_btn.add_theme_stylebox_override("hover", prof_hover)
+		profile_btn.add_theme_stylebox_override("pressed", prof_hover)
+		profile_btn.add_theme_stylebox_override("focus", prof_st)
+
 	_refresh_sfx_button()
 
 
 func _connect_signals() -> void:
-	if sandbox_btn:
+	if sandbox_btn and not sandbox_btn.pressed.is_connected(_on_sandbox_pressed):
 		sandbox_btn.pressed.connect(_on_sandbox_pressed)
-	if test_boss_btn:
+	if test_boss_btn and not test_boss_btn.pressed.is_connected(_on_test_boss_pressed):
 		test_boss_btn.pressed.connect(_on_test_boss_pressed)
-	if sfx_btn:
+	if profile_btn and not profile_btn.pressed.is_connected(_on_profile_pressed):
+		profile_btn.pressed.connect(_on_profile_pressed)
+	if close_profile_btn and not close_profile_btn.pressed.is_connected(_close_profile_dialog):
+		close_profile_btn.pressed.connect(_close_profile_dialog)
+	if profile_overlay and not profile_overlay.gui_input.is_connected(_on_profile_overlay_gui_input):
+		profile_overlay.gui_input.connect(_on_profile_overlay_gui_input)
+	if sfx_btn and not sfx_btn.pressed.is_connected(_on_sfx_pressed):
 		sfx_btn.pressed.connect(_on_sfx_pressed)
-	AudioManager.sfx_toggled.connect(_on_sfx_toggled)
+	if not AudioManager.sfx_toggled.is_connected(_on_sfx_toggled):
+		AudioManager.sfx_toggled.connect(_on_sfx_toggled)
 	if tab_campaign_btn:
-		tab_campaign_btn.pressed.connect(_switch_tab.bind(HubTab.CAMPAIGN))
+		var cb_camp := _switch_tab.bind(HubTab.CAMPAIGN)
+		if not tab_campaign_btn.pressed.is_connected(cb_camp):
+			tab_campaign_btn.pressed.connect(cb_camp)
 	if tab_creatures_btn:
-		tab_creatures_btn.pressed.connect(_switch_tab.bind(HubTab.CREATURES))
+		var cb_cr := _switch_tab.bind(HubTab.CREATURES)
+		if not tab_creatures_btn.pressed.is_connected(cb_cr):
+			tab_creatures_btn.pressed.connect(cb_cr)
 	if tab_kingdom_btn:
-		tab_kingdom_btn.pressed.connect(_switch_tab.bind(HubTab.KINGDOM))
+		var cb_kg := _switch_tab.bind(HubTab.KINGDOM)
+		if not tab_kingdom_btn.pressed.is_connected(cb_kg):
+			tab_kingdom_btn.pressed.connect(cb_kg)
 
 
 func _switch_tab(tab: HubTab) -> void:
@@ -750,3 +933,178 @@ func _on_claim_mine_pressed() -> void:
 	if claimed > 0:
 		_refresh_top_bar()
 		_populate_kingdom_tab()
+
+
+func _setup_profile_dialog() -> void:
+	if profile_emblem_slot and _profile_emblem == null:
+		_profile_emblem = ProfileEmblem.new()
+		profile_emblem_slot.add_child(_profile_emblem)
+	if profile_overlay:
+		profile_overlay.visible = false
+
+
+func _on_profile_pressed() -> void:
+	AudioManager.play_select()
+	_refresh_profile_dialog()
+	if profile_overlay == null:
+		return
+	profile_overlay.visible = true
+	if profile_panel:
+		_kill_profile_tween()
+		var panel_size: Vector2 = profile_panel.size if profile_panel.size.x > 10.0 else Vector2(616.0, 540.0)
+		profile_panel.pivot_offset = panel_size * 0.5
+		profile_panel.modulate.a = 0.0
+		profile_panel.scale = Vector2(0.94, 0.94)
+		_profile_tween = create_tween()
+		_profile_tween.set_parallel(true)
+		_profile_tween.tween_property(profile_panel, "modulate:a", 1.0, 0.16).set_ease(Tween.EASE_OUT)
+		_profile_tween.tween_property(profile_panel, "scale", Vector2.ONE, 0.18).set_ease(Tween.EASE_OUT)
+
+
+func _close_profile_dialog() -> void:
+	_kill_profile_tween()
+	if profile_overlay:
+		profile_overlay.visible = false
+	if profile_panel:
+		profile_panel.modulate.a = 1.0
+		profile_panel.scale = Vector2.ONE
+
+
+func _on_profile_overlay_gui_input(event: InputEvent) -> void:
+	if profile_overlay == null or not profile_overlay.visible or profile_panel == null:
+		return
+	var tap_pos: Vector2 = Vector2.ZERO
+	var is_tap: bool = false
+	if event is InputEventScreenTouch and event.pressed:
+		tap_pos = event.position
+		is_tap = true
+	elif event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		tap_pos = event.position
+		is_tap = true
+	if is_tap and not profile_panel.get_global_rect().has_point(tap_pos):
+		_close_profile_dialog()
+
+
+func _kill_profile_tween() -> void:
+	if _profile_tween != null and _profile_tween.is_valid():
+		_profile_tween.kill()
+	_profile_tween = null
+
+
+func _refresh_profile_dialog() -> void:
+	var stats: Dictionary = SaveManager.get_statistics()
+	var castle_lv: int = SaveManager.get_building_level("castle")
+	var completed: int = int(stats["campaign_completed"])
+	var total_stages: int = int(stats["campaign_total"])
+	var unlocked_lv: int = int(stats["unlocked_level"])
+	var wins: int = int(stats["wins"])
+	var losses: int = int(stats["losses"])
+	var total_battles: int = int(stats["total_battles"])
+	var current_streak: int = int(stats["current_streak"])
+	var best_streak: int = int(stats["best_streak"])
+	var boss_victories: int = int(stats["boss_victories"])
+
+	if _profile_emblem:
+		_profile_emblem.kingdom_level = castle_lv
+		_profile_emblem.cleared_levels = completed
+		_profile_emblem.queue_redraw()
+
+	if profile_rank_label:
+		profile_rank_label.text = _get_commander_title(castle_lv, completed)
+	if profile_kingdom_label:
+		profile_kingdom_label.text = "Kingdom LV %d  |  %s" % [castle_lv, CampaignData.REALM_NAME]
+	if profile_creature_label:
+		var eq_id: String = SaveManager.get_equipped_creature()
+		var eq_info: Dictionary = CreatureData.get_creature(eq_id)
+		var eq_lv: int = SaveManager.get_creature_level(eq_id)
+		profile_creature_label.text = "Guardian: %s (LV %d)" % [str(eq_info["name"]), eq_lv]
+
+	if campaign_count_label:
+		campaign_count_label.text = "%d / %d" % [completed, total_stages]
+	if campaign_progress_bar:
+		campaign_progress_bar.max_value = float(maxi(1, total_stages))
+		campaign_progress_bar.value = float(clampi(completed, 0, total_stages))
+	if campaign_meta_label:
+		var win_rate_str: String = "--"
+		if total_battles > 0:
+			win_rate_str = "%d%%" % roundi((float(wins) / float(total_battles)) * 100.0)
+		campaign_meta_label.text = "Unlocked Stage: LV %d  |  Win Rate: %s" % [unlocked_lv, win_rate_str]
+
+	if stats_grid == null:
+		return
+	_clear_children(stats_grid)
+
+	var stat_entries: Array[Dictionary] = [
+		{"title": "Total Wins", "value": str(wins), "kind": StatIcon.Kind.WINS, "accent": Color(0.32, 0.94, 0.72, 1.0)},
+		{"title": "Total Losses", "value": str(losses), "kind": StatIcon.Kind.LOSSES, "accent": Color(0.96, 0.44, 0.48, 1.0)},
+		{"title": "Current Streak", "value": str(current_streak), "kind": StatIcon.Kind.STREAK, "accent": Color(1.0, 0.78, 0.28, 1.0)},
+		{"title": "Best Streak", "value": str(best_streak), "kind": StatIcon.Kind.BEST_STREAK, "accent": Color(0.98, 0.88, 0.42, 1.0)},
+		{"title": "Total Battles", "value": str(total_battles), "kind": StatIcon.Kind.BATTLES, "accent": Color(0.45, 0.84, 1.0, 1.0)},
+		{"title": "Boss Victories", "value": str(boss_victories), "kind": StatIcon.Kind.BOSS, "accent": Color(0.88, 0.44, 0.96, 1.0)},
+	]
+
+	for entry in stat_entries:
+		stats_grid.add_child(_create_stat_card(
+			str(entry["title"]),
+			str(entry["value"]),
+			entry["kind"] as StatIcon.Kind,
+			entry["accent"] as Color
+		))
+
+
+func _create_stat_card(title_text: String, value_text: String, icon_kind: StatIcon.Kind, accent: Color) -> PanelContainer:
+	var card := PanelContainer.new()
+	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var st := StyleBoxFlat.new()
+	st.bg_color = Color(0.09, 0.145, 0.22, 0.96)
+	st.border_color = Color(accent.r, accent.g, accent.b, 0.60)
+	st.set_border_width_all(2)
+	st.set_corner_radius_all(12)
+	card.add_theme_stylebox_override("panel", st)
+
+	var margin := MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", 12)
+	margin.add_theme_constant_override("margin_top", 10)
+	margin.add_theme_constant_override("margin_right", 12)
+	margin.add_theme_constant_override("margin_bottom", 10)
+	card.add_child(margin)
+
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 10)
+	row.alignment = BoxContainer.ALIGNMENT_BEGIN
+	margin.add_child(row)
+
+	var icon := StatIcon.new()
+	icon.kind = icon_kind
+	icon.accent = accent
+	row.add_child(icon)
+
+	var vbox := VBoxContainer.new()
+	vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	vbox.add_theme_constant_override("separation", 1)
+	vbox.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_child(vbox)
+
+	var val_lbl := Label.new()
+	val_lbl.text = value_text
+	val_lbl.add_theme_font_size_override("font_size", 22)
+	val_lbl.add_theme_color_override("font_color", Color(0.97, 0.99, 1.0, 1.0))
+	vbox.add_child(val_lbl)
+
+	var title_lbl := Label.new()
+	title_lbl.text = title_text
+	title_lbl.add_theme_font_size_override("font_size", 12)
+	title_lbl.add_theme_color_override("font_color", Color(0.68, 0.80, 0.92, 1.0))
+	vbox.add_child(title_lbl)
+
+	return card
+
+
+func _get_commander_title(castle_lv: int, cleared: int) -> String:
+	if cleared >= CampaignData.TOTAL_LEVELS:
+		return "OVERLORD VANQUISHER"
+	if castle_lv >= 4 or cleared >= 10:
+		return "SKY ARCHON"
+	if castle_lv >= 2 or cleared >= 5:
+		return "REALM MARSHAL"
+	return "REALM COMMANDER"

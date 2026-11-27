@@ -147,6 +147,11 @@ func get_unlocked_level() -> int:
 	return clampi(int(data["campaign"]["unlocked_level"]), 1, MAX_CAMPAIGN_LEVEL)
 
 
+func get_completed_levels_count() -> int:
+	var completed: Array = data["campaign"]["completed_levels"]
+	return completed.size()
+
+
 func is_level_completed(level_id: int) -> bool:
 	var completed: Array = data["campaign"]["completed_levels"]
 	for item in completed:
@@ -272,6 +277,10 @@ func record_campaign_victory(level_id: int, gold_earned: int, essence_earned: in
 	if next_unlock > current_unlocked:
 		data["campaign"]["unlocked_level"] = next_unlock
 
+	var level_info: Dictionary = CampaignData.get_level(level_id)
+	if bool(level_info.get("is_boss", false)):
+		_increment_boss_victory()
+
 	_increment_win_stats()
 	save_game()
 
@@ -281,18 +290,54 @@ func record_sandbox_victory() -> void:
 	save_game()
 
 
+func record_boss_victory() -> void:
+	_increment_boss_victory()
+	_increment_win_stats()
+	save_game()
+
+
 func record_defeat() -> void:
-	data["statistics"]["losses"] = int(data["statistics"]["losses"]) + 1
+	if not (data.get("statistics") is Dictionary):
+		data["statistics"] = {}
+	data["statistics"]["losses"] = int(data["statistics"].get("losses", 0)) + 1
 	data["statistics"]["current_streak"] = 0
 	save_game()
 
 
+func get_statistics() -> Dictionary:
+	var stats: Dictionary = data.get("statistics", {})
+	var wins: int = maxi(0, int(stats.get("wins", 0)))
+	var losses: int = maxi(0, int(stats.get("losses", 0)))
+	var current_streak: int = maxi(0, int(stats.get("current_streak", 0)))
+	var best_streak: int = maxi(current_streak, int(stats.get("best_streak", 0)))
+	var boss_victories: int = maxi(0, int(stats.get("boss_victories", 0)))
+	return {
+		"wins": wins,
+		"losses": losses,
+		"total_battles": wins + losses,
+		"current_streak": current_streak,
+		"best_streak": best_streak,
+		"boss_victories": boss_victories,
+		"campaign_completed": get_completed_levels_count(),
+		"campaign_total": MAX_CAMPAIGN_LEVEL,
+		"unlocked_level": get_unlocked_level(),
+	}
+
+
 func _increment_win_stats() -> void:
-	data["statistics"]["wins"] = int(data["statistics"]["wins"]) + 1
-	var streak: int = int(data["statistics"]["current_streak"]) + 1
+	if not (data.get("statistics") is Dictionary):
+		data["statistics"] = {}
+	data["statistics"]["wins"] = int(data["statistics"].get("wins", 0)) + 1
+	var streak: int = int(data["statistics"].get("current_streak", 0)) + 1
 	data["statistics"]["current_streak"] = streak
-	if streak > int(data["statistics"]["best_streak"]):
+	if streak > int(data["statistics"].get("best_streak", 0)):
 		data["statistics"]["best_streak"] = streak
+
+
+func _increment_boss_victory() -> void:
+	if not (data.get("statistics") is Dictionary):
+		data["statistics"] = {}
+	data["statistics"]["boss_victories"] = int(data["statistics"].get("boss_victories", 0)) + 1
 
 
 func _sanitize_loaded_data(loaded: Dictionary, defaults: Dictionary) -> Dictionary:
@@ -345,10 +390,16 @@ func _sanitize_loaded_data(loaded: Dictionary, defaults: Dictionary) -> Dictiona
 
 	if loaded.get("statistics") is Dictionary:
 		var s: Dictionary = loaded["statistics"]
-		result["statistics"]["wins"] = maxi(0, int(s.get("wins", 0)))
-		result["statistics"]["losses"] = maxi(0, int(s.get("losses", 0)))
-		result["statistics"]["best_streak"] = maxi(0, int(s.get("best_streak", 0)))
-		result["statistics"]["current_streak"] = maxi(0, int(s.get("current_streak", 0)))
+		var wins: int = maxi(0, int(s.get("wins", 0)))
+		var losses: int = maxi(0, int(s.get("losses", 0)))
+		var current_streak: int = maxi(0, int(s.get("current_streak", 0)))
+		var best_streak: int = maxi(current_streak, int(s.get("best_streak", 0)))
+		var boss_victories: int = maxi(0, int(s.get("boss_victories", 0)))
+		result["statistics"]["wins"] = wins
+		result["statistics"]["losses"] = losses
+		result["statistics"]["best_streak"] = best_streak
+		result["statistics"]["current_streak"] = current_streak
+		result["statistics"]["boss_victories"] = boss_victories
 
 	if loaded.get("settings") is Dictionary:
 		var st: Dictionary = loaded["settings"]
@@ -397,6 +448,7 @@ func _get_default_data() -> Dictionary:
 			"losses": 0,
 			"best_streak": 0,
 			"current_streak": 0,
+			"boss_victories": 0,
 		},
 		"settings": {
 			"sfx_enabled": true,
