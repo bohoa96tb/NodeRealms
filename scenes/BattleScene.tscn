@@ -1,0 +1,289 @@
+[gd_scene load_steps=10 format=3]
+
+[ext_resource type="Script" path="res://scripts/battle_manager.gd" id="1_battle_manager"]
+[ext_resource type="Script" path="res://scripts/ai_controller.gd" id="2_ai_controller"]
+[ext_resource type="PackedScene" path="res://scenes/BaseNode.tscn" id="3_base_node"]
+[ext_resource type="PackedScene" path="res://scenes/ArmyGroup.tscn" id="4_army_group"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_topbar"]
+bg_color = Color(0.09, 0.12, 0.18, 0.9)
+border_width_bottom = 2
+border_color = Color(0.22, 0.3, 0.42, 0.85)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_bottombar"]
+bg_color = Color(0.09, 0.12, 0.18, 0.94)
+border_width_top = 2
+border_color = Color(0.22, 0.3, 0.42, 0.85)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_popup"]
+bg_color = Color(0.1, 0.13, 0.2, 0.98)
+border_width_left = 3
+border_width_top = 3
+border_width_right = 3
+border_width_bottom = 3
+border_color = Color(0.35, 0.52, 0.72, 0.95)
+corner_radius_top_left = 18
+corner_radius_top_right = 18
+corner_radius_bottom_right = 18
+corner_radius_bottom_left = 18
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_restart_normal"]
+bg_color = Color(0.18, 0.525, 0.871, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.55, 0.82, 1, 1)
+corner_radius_top_left = 12
+corner_radius_top_right = 12
+corner_radius_bottom_right = 12
+corner_radius_bottom_left = 12
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_restart_hover"]
+bg_color = Color(0.25, 0.62, 0.96, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.75, 0.92, 1, 1)
+corner_radius_top_left = 12
+corner_radius_top_right = 12
+corner_radius_bottom_right = 12
+corner_radius_bottom_left = 12
+
+[node name="BattleScene" type="Node2D"]
+script = ExtResource("1_battle_manager")
+army_group_scene = ExtResource("4_army_group")
+
+[node name="Camera2D" type="Camera2D" parent="."]
+position = Vector2(360, 640)
+
+[node name="Background" type="ColorRect" parent="."]
+offset_left = -1000.0
+offset_top = -1000.0
+offset_right = 1720.0
+offset_bottom = 2280.0
+mouse_filter = 2
+color = Color(0.067, 0.086, 0.125, 1)
+
+[node name="PathsLayer" type="Node2D" parent="."]
+
+[node name="NodesLayer" type="Node2D" parent="."]
+
+[node name="BaseNode1" parent="NodesLayer" instance=ExtResource("3_base_node")]
+position = Vector2(360, 190)
+node_id = 1
+faction = 2
+troops = 20.0
+
+[node name="BaseNode2" parent="NodesLayer" instance=ExtResource("3_base_node")]
+position = Vector2(175, 390)
+node_id = 2
+faction = 0
+troops = 12.0
+
+[node name="BaseNode3" parent="NodesLayer" instance=ExtResource("3_base_node")]
+position = Vector2(545, 390)
+node_id = 3
+faction = 0
+troops = 12.0
+
+[node name="BaseNode4" parent="NodesLayer" instance=ExtResource("3_base_node")]
+position = Vector2(360, 620)
+node_id = 4
+faction = 0
+troops = 15.0
+
+[node name="BaseNode5" parent="NodesLayer" instance=ExtResource("3_base_node")]
+position = Vector2(175, 850)
+node_id = 5
+faction = 0
+troops = 12.0
+
+[node name="BaseNode6" parent="NodesLayer" instance=ExtResource("3_base_node")]
+position = Vector2(545, 850)
+node_id = 6
+faction = 0
+troops = 12.0
+
+[node name="BaseNode7" parent="NodesLayer" instance=ExtResource("3_base_node")]
+position = Vector2(360, 1050)
+node_id = 7
+faction = 1
+troops = 20.0
+
+[node name="ArmyGroupsLayer" type="Node2D" parent="."]
+
+[node name="DragLine" type="Line2D" parent="."]
+visible = false
+width = 6.0
+default_color = Color(0.45, 0.78, 1, 0.85)
+begin_cap_mode = 2
+end_cap_mode = 2
+
+[node name="AIController" type="Node" parent="."]
+script = ExtResource("2_ai_controller")
+
+[node name="HUD" type="CanvasLayer" parent="."]
+
+[node name="HUDRoot" type="Control" parent="HUD"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="TopBar" type="PanelContainer" parent="HUD/HUDRoot"]
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_bottom = 96.0
+grow_horizontal = 2
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_topbar")
+
+[node name="TopMargin" type="MarginContainer" parent="HUD/HUDRoot/TopBar"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/margin_left = 20
+theme_override_constants/margin_top = 12
+theme_override_constants/margin_right = 20
+theme_override_constants/margin_bottom = 12
+
+[node name="TopVBox" type="VBoxContainer" parent="HUD/HUDRoot/TopBar/TopMargin"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 4
+alignment = 1
+
+[node name="TitleLabel" type="Label" parent="HUD/HUDRoot/TopBar/TopMargin/TopVBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.92, 0.95, 1, 1)
+theme_override_font_sizes/font_size = 26
+text = "NODE REALMS"
+horizontal_alignment = 1
+
+[node name="StatsLabel" type="Label" parent="HUD/HUDRoot/TopBar/TopMargin/TopVBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.68, 0.78, 0.9, 1)
+theme_override_font_sizes/font_size = 16
+text = "REALM FORCES   BLUE: 20   |   RED: 20"
+horizontal_alignment = 1
+
+[node name="BottomBar" type="PanelContainer" parent="HUD/HUDRoot"]
+layout_mode = 1
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = -124.0
+grow_horizontal = 2
+grow_vertical = 0
+theme_override_styles/panel = SubResource("StyleBoxFlat_bottombar")
+
+[node name="BottomMargin" type="MarginContainer" parent="HUD/HUDRoot/BottomBar"]
+layout_mode = 2
+theme_override_constants/margin_left = 24
+theme_override_constants/margin_top = 20
+theme_override_constants/margin_right = 24
+theme_override_constants/margin_bottom = 20
+
+[node name="RatioContainer" type="HBoxContainer" parent="HUD/HUDRoot/BottomBar/BottomMargin"]
+layout_mode = 2
+theme_override_constants/separation = 16
+alignment = 1
+
+[node name="Btn25" type="Button" parent="HUD/HUDRoot/BottomBar/BottomMargin/RatioContainer"]
+custom_minimum_size = Vector2(0, 72)
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+theme_override_font_sizes/font_size = 24
+text = "25%"
+
+[node name="Btn50" type="Button" parent="HUD/HUDRoot/BottomBar/BottomMargin/RatioContainer"]
+custom_minimum_size = Vector2(0, 72)
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+theme_override_font_sizes/font_size = 24
+text = "50%"
+
+[node name="Btn75" type="Button" parent="HUD/HUDRoot/BottomBar/BottomMargin/RatioContainer"]
+custom_minimum_size = Vector2(0, 72)
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+theme_override_font_sizes/font_size = 24
+text = "75%"
+
+[node name="Btn100" type="Button" parent="HUD/HUDRoot/BottomBar/BottomMargin/RatioContainer"]
+custom_minimum_size = Vector2(0, 72)
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+theme_override_font_sizes/font_size = 24
+text = "100%"
+
+[node name="ResultOverlay" type="ColorRect" parent="HUD/HUDRoot"]
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.03, 0.04, 0.07, 0.78)
+
+[node name="CenterContainer" type="CenterContainer" parent="HUD/HUDRoot/ResultOverlay"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="ResultPopup" type="PanelContainer" parent="HUD/HUDRoot/ResultOverlay/CenterContainer"]
+custom_minimum_size = Vector2(460, 290)
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_popup")
+
+[node name="PopupMargin" type="MarginContainer" parent="HUD/HUDRoot/ResultOverlay/CenterContainer/ResultPopup"]
+layout_mode = 2
+theme_override_constants/margin_left = 32
+theme_override_constants/margin_top = 32
+theme_override_constants/margin_right = 32
+theme_override_constants/margin_bottom = 32
+
+[node name="PopupVBox" type="VBoxContainer" parent="HUD/HUDRoot/ResultOverlay/CenterContainer/ResultPopup/PopupMargin"]
+layout_mode = 2
+theme_override_constants/separation = 20
+alignment = 1
+
+[node name="ResultTitle" type="Label" parent="HUD/HUDRoot/ResultOverlay/CenterContainer/ResultPopup/PopupMargin/PopupVBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.45, 0.88, 1, 1)
+theme_override_font_sizes/font_size = 48
+text = "VICTORY"
+horizontal_alignment = 1
+
+[node name="ResultSubtitle" type="Label" parent="HUD/HUDRoot/ResultOverlay/CenterContainer/ResultPopup/PopupMargin/PopupVBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.8, 0.86, 0.94, 1)
+theme_override_font_sizes/font_size = 20
+text = "All enemy realms conquered!"
+horizontal_alignment = 1
+
+[node name="RestartButton" type="Button" parent="HUD/HUDRoot/ResultOverlay/CenterContainer/ResultPopup/PopupMargin/PopupVBox"]
+custom_minimum_size = Vector2(220, 64)
+layout_mode = 2
+size_flags_horizontal = 4
+focus_mode = 0
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 24
+theme_override_styles/normal = SubResource("StyleBoxFlat_restart_normal")
+theme_override_styles/hover = SubResource("StyleBoxFlat_restart_hover")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_restart_hover")
+text = "Restart"

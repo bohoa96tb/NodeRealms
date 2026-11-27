@@ -1,0 +1,25 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/base_node.gd" id="1_base_node"]
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_base"]
+radius = 44.0
+
+[node name="BaseNode" type="Area2D"]
+script = ExtResource("1_base_node")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("CircleShape2D_base")
+
+[node name="TroopLabel" type="Label" parent="."]
+offset_left = -36.0
+offset_top = -18.0
+offset_right = 36.0
+offset_bottom = 18.0
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_colors/font_outline_color = Color(0.05, 0.07, 0.1, 0.95)
+theme_override_constants/outline_size = 5
+theme_override_font_sizes/font_size = 24
+text = "10"
+horizontal_alignment = 1
+vertical_alignment = 1

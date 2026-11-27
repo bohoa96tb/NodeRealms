@@ -1,0 +1,26 @@
+# Godot 4+ specific ignores
+.godot/
+
+# Godot-specific ignores
+*.translation
+
+# Imported textures and samples (if any legacy/import artifacts exist)
+.import/
+
+# Mono / C# builds (unused in GDScript, kept for completeness)
+.mono/
+data_*/
+mono_crash.*.json
+
+# Export and Android build artifacts
+export_presets.cfg
+*.apk
+*.aab
+*.keystore
+
+# OS / Editor files
+.DS_Store
+Thumbs.db
+*.tmp
+*.swp
+*~
