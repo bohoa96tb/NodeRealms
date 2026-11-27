@@ -232,7 +232,7 @@ theme_override_constants/separation = 12
 layout_mode = 2
 theme_override_colors/font_color = Color(0.38, 0.94, 0.72, 1)
 theme_override_font_sizes/font_size = 15
-text = "00:00 (<01:30)"
+text = "00:00 / 01:30"
 vertical_alignment = 1
 
 [node name="NoLossLabel" type="Label" parent="HUD/HUDRoot/TopBar/TopMargin/TopVBox/StatusInfoRow"]
@@ -240,7 +240,7 @@ layout_mode = 2
 size_flags_horizontal = 3
 theme_override_colors/font_color = Color(0.42, 0.92, 0.58, 1)
 theme_override_font_sizes/font_size = 15
-text = "No Loss: OK"
+text = "NO LOSS"
 horizontal_alignment = 1
 vertical_alignment = 1
 
@@ -255,7 +255,7 @@ alignment = 2
 layout_mode = 2
 theme_override_colors/font_color = Color(1, 0.52, 0.62, 1)
 theme_override_font_sizes/font_size = 15
-text = "Surge: 12s"
+text = "BOSS SURGE: 12s"
 vertical_alignment = 1
 
 [node name="BossGaugeBar" type="ProgressBar" parent="HUD/HUDRoot/TopBar/TopMargin/TopVBox/StatusInfoRow/BossGaugeBox"]

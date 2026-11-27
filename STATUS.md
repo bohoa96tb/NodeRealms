@@ -73,9 +73,9 @@
 
 ### P3 Part 2 - Mobile UX Polish, Combat Readability & Player Retention
 1. **In-Battle Readability & Bonus Tracking (Completed):**
-   - Live match timer (`MM:SS (<01:30)`) in `BattleScene` `TopBar` tracking `<90s` Fast Clear bonus, plus live `No Loss: OK / LOST` indicator.
-   - Compact **Boss Surge** countdown + `ProgressBar` (`Surge: Xs` -> `SURGE! Xs`) visible during Level 15 and `Test Boss`, freezing cleanly on Victory/Defeat/Pause.
-   - Android top safe-area inset padding (`DisplayServer.get_display_safe_area()`) in `BattleScene` `TopBar` with `PLAY_AREA` shifted to `y=240..1020` to clear notches and banners.
+   - Live match timer (`00:42 / 01:30`) in `BattleScene` `TopBar` tracking `<90s` Fast Clear bonus (bright green `<90s`, muted gray `>=90s`, frozen on Pause/End), plus live `NO LOSS` / `BASE LOST` indicator.
+   - Compact **Boss Surge** countdown + `ProgressBar` (`BOSS SURGE: Xs` -> blinking `CHARGING! Xs`) visible only on Level 15 and `Test Boss`, freezing cleanly on Victory/Defeat/Pause.
+   - Android top safe-area inset padding (`DisplayServer.get_display_safe_area()` scaled by viewport height) in `BattleScene` `TopBar` with `PLAY_AREA` at `y=240..1020` to clear notches and banners.
 2. **Android Safe Area & Tall-Screen Layout (Remaining):**
    - Extend `DisplayServer.get_display_safe_area()` top/bottom insets to `MainHubScene` and `BattleScene` bottom navigation/HUD bars.
 3. **Onboarding & Player Statistics:**

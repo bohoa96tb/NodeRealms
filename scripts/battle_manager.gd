@@ -83,6 +83,7 @@ var _boss_node: BaseNode = null
 var _boss_skill_timer: float = 0.0
 var _boss_charging: bool = false
 var _boss_charge_timer: float = 0.0
+var _boss_blink_time: float = 0.0
 
 var _shake_time: float = 0.0
 var _shake_duration: float = 0.15
@@ -256,6 +257,7 @@ func load_generated_map(
 	_boss_skill_timer = 0.0
 	_boss_charging = false
 	_boss_charge_timer = 0.0
+	_boss_blink_time = 0.0
 	_shake_time = 0.0
 	_shake_intensity = 0.0
 	if camera_2d:
@@ -389,8 +391,9 @@ func _process_boss_skill(delta: float) -> void:
 
 	if _boss_charging:
 		_boss_charge_timer -= delta
+		_boss_blink_time += delta * 14.0
 		if boss_banner_label:
-			var blink: float = 0.6 + 0.4 * sin(_portal_anim_time * 14.0)
+			var blink: float = 0.6 + 0.4 * sin(_boss_blink_time)
 			boss_banner_label.modulate.a = blink
 		if _boss_charge_timer <= 0.0:
 			_execute_boss_skill()
@@ -404,6 +407,7 @@ func _process_boss_skill(delta: float) -> void:
 func _start_boss_charge() -> void:
 	_boss_charging = true
 	_boss_charge_timer = BOSS_CHARGE_DURATION
+	_boss_blink_time = 0.0
 	if _boss_node and is_instance_valid(_boss_node):
 		_boss_node.is_boss_charging = true
 	if boss_banner_label:
@@ -896,7 +900,10 @@ func _apply_safe_area_top_padding() -> void:
 	if screen_size.y > 0:
 		var safe_area: Rect2i = DisplayServer.get_display_safe_area()
 		if safe_area.position.y > 0:
-			var canvas_top_inset: float = (float(safe_area.position.y) / float(screen_size.y)) * 1280.0
+			var vp_height: float = get_viewport().get_visible_rect().size.y
+			if vp_height <= 0.0:
+				vp_height = 1280.0
+			var canvas_top_inset: float = (float(safe_area.position.y) / float(screen_size.y)) * vp_height
 			extra_top = clampf(canvas_top_inset - BASE_TOP_MARGIN, 0.0, 36.0)
 
 	var final_top_margin: int = roundi(BASE_TOP_MARGIN + extra_top)
@@ -916,20 +923,19 @@ func _update_battle_readability_hud() -> void:
 		var total_secs: int = floori(_match_elapsed_time)
 		var mins: int = total_secs / 60
 		var secs: int = total_secs % 60
+		timer_label.text = "%02d:%02d / 01:30" % [mins, secs]
 		if _match_elapsed_time < FAST_CLEAR_LIMIT_SEC:
-			timer_label.text = "%02d:%02d (<01:30)" % [mins, secs]
 			timer_label.add_theme_color_override("font_color", Color(0.38, 0.94, 0.72, 1.0))
 		else:
-			timer_label.text = "%02d:%02d" % [mins, secs]
-			timer_label.add_theme_color_override("font_color", Color(0.68, 0.74, 0.82, 1.0))
+			timer_label.add_theme_color_override("font_color", Color(0.76, 0.78, 0.84, 1.0))
 
 	if no_loss_label:
 		if not _player_lost_base:
-			no_loss_label.text = "No Loss: OK"
+			no_loss_label.text = "NO LOSS"
 			no_loss_label.add_theme_color_override("font_color", Color(0.42, 0.92, 0.58, 1.0))
 		else:
-			no_loss_label.text = "No Loss: LOST"
-			no_loss_label.add_theme_color_override("font_color", Color(0.74, 0.48, 0.52, 1.0))
+			no_loss_label.text = "BASE LOST"
+			no_loss_label.add_theme_color_override("font_color", Color(0.84, 0.52, 0.54, 1.0))
 
 	if boss_gauge_box:
 		var boss_alive: bool = (
@@ -945,20 +951,24 @@ func _update_battle_readability_hud() -> void:
 					boss_gauge_bar.max_value = BOSS_CHARGE_DURATION
 					boss_gauge_bar.value = clampf(BOSS_CHARGE_DURATION - _boss_charge_timer, 0.0, BOSS_CHARGE_DURATION)
 				if boss_gauge_label:
-					boss_gauge_label.text = "SURGE! %ds" % maxi(1, ceili(_boss_charge_timer))
+					boss_gauge_label.text = "CHARGING! %ds" % maxi(1, ceili(_boss_charge_timer))
 					boss_gauge_label.add_theme_color_override("font_color", Color(1.0, 0.35, 0.38, 1.0))
 				if _style_boss_bar_fill:
 					_style_boss_bar_fill.bg_color = Color(1.0, 0.25, 0.32, 1.0)
+				boss_gauge_box.modulate.a = 1.0 if _game_ended else (0.55 + 0.45 * sin(_boss_blink_time))
 			else:
+				boss_gauge_box.modulate.a = 1.0
 				if boss_gauge_bar:
 					boss_gauge_bar.max_value = BOSS_SKILL_INTERVAL
 					boss_gauge_bar.value = clampf(_boss_skill_timer, 0.0, BOSS_SKILL_INTERVAL)
 				if boss_gauge_label:
 					var rem_sec: int = maxi(1, ceili(BOSS_SKILL_INTERVAL - _boss_skill_timer))
-					boss_gauge_label.text = "Surge: %ds" % rem_sec
+					boss_gauge_label.text = "BOSS SURGE: %ds" % rem_sec
 					boss_gauge_label.add_theme_color_override("font_color", Color(1.0, 0.56, 0.70, 1.0))
 				if _style_boss_bar_fill:
 					_style_boss_bar_fill.bg_color = Color(0.84, 0.22, 0.52, 1.0)
+		else:
+			boss_gauge_box.modulate.a = 1.0
 
 
 func _setup_hud_styles() -> void:
