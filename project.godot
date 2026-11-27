@@ -11,8 +11,12 @@ config_version=5
 [application]
 
 config/name="Node Realms"
-run/main_scene="res://scenes/BattleScene.tscn"
+run/main_scene="res://scenes/CampaignScene.tscn"
 config/features=PackedStringArray("4.3", "GL Compatibility")
+
+[autoload]
+
+SaveManager="*res://scripts/save_manager.gd"
 
 [display]
 

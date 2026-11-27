@@ -1,4 +1,4 @@
-[gd_scene load_steps=11 format=3]
+[gd_scene load_steps=13 format=3]
 
 [ext_resource type="Script" path="res://scripts/battle_manager.gd" id="1_battle_manager"]
 [ext_resource type="Script" path="res://scripts/ai_controller.gd" id="2_ai_controller"]
@@ -28,6 +28,18 @@ corner_radius_top_right = 18
 corner_radius_bottom_right = 18
 corner_radius_bottom_left = 18
 
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_next_normal"]
+bg_color = Color(0.14, 0.58, 0.36, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.48, 0.94, 0.66, 1)
+corner_radius_top_left = 12
+corner_radius_top_right = 12
+corner_radius_bottom_right = 12
+corner_radius_bottom_left = 12
+
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_restart_normal"]
 bg_color = Color(0.18, 0.525, 0.871, 1)
 border_width_left = 2
@@ -47,6 +59,18 @@ border_width_top = 2
 border_width_right = 2
 border_width_bottom = 2
 border_color = Color(0.75, 0.92, 1, 1)
+corner_radius_top_left = 12
+corner_radius_top_right = 12
+corner_radius_bottom_right = 12
+corner_radius_bottom_left = 12
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_campaign_normal"]
+bg_color = Color(0.2, 0.25, 0.34, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.48, 0.58, 0.72, 1)
 corner_radius_top_left = 12
 corner_radius_top_right = 12
 corner_radius_bottom_right = 12
@@ -146,40 +170,49 @@ vertical_alignment = 1
 [node name="MapControlsRow" type="HBoxContainer" parent="HUD/HUDRoot/TopBar/TopMargin/TopVBox"]
 layout_mode = 2
 mouse_filter = 2
-theme_override_constants/separation = 10
+theme_override_constants/separation = 8
 
 [node name="SeedLabel" type="Label" parent="HUD/HUDRoot/TopBar/TopMargin/TopVBox/MapControlsRow"]
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_colors/font_color = Color(0.55, 0.85, 1, 1)
-theme_override_font_sizes/font_size = 16
+theme_override_font_sizes/font_size = 15
 text = "Seed: #00000"
 vertical_alignment = 1
+clip_text = true
 
 [node name="TierLabel" type="Label" parent="HUD/HUDRoot/TopBar/TopMargin/TopVBox/MapControlsRow"]
 custom_minimum_size = Vector2(72, 0)
 layout_mode = 2
 theme_override_colors/font_color = Color(0.84, 0.68, 1, 1)
-theme_override_font_sizes/font_size = 16
+theme_override_font_sizes/font_size = 15
 text = "Tier: 1"
 horizontal_alignment = 1
 vertical_alignment = 1
 
 [node name="TierBtn" type="Button" parent="HUD/HUDRoot/TopBar/TopMargin/TopVBox/MapControlsRow"]
-custom_minimum_size = Vector2(88, 38)
+custom_minimum_size = Vector2(78, 38)
 layout_mode = 2
 focus_mode = 0
 theme_override_colors/font_color = Color(0.92, 0.95, 1, 1)
-theme_override_font_sizes/font_size = 15
+theme_override_font_sizes/font_size = 14
 text = "Tier +"
 
 [node name="NextMapBtn" type="Button" parent="HUD/HUDRoot/TopBar/TopMargin/TopVBox/MapControlsRow"]
-custom_minimum_size = Vector2(114, 38)
+custom_minimum_size = Vector2(102, 38)
 layout_mode = 2
 focus_mode = 0
 theme_override_colors/font_color = Color(0.92, 0.95, 1, 1)
-theme_override_font_sizes/font_size = 15
+theme_override_font_sizes/font_size = 14
 text = "Next Map"
+
+[node name="BackBtn" type="Button" parent="HUD/HUDRoot/TopBar/TopMargin/TopVBox/MapControlsRow"]
+custom_minimum_size = Vector2(74, 38)
+layout_mode = 2
+focus_mode = 0
+theme_override_colors/font_color = Color(0.92, 0.95, 1, 1)
+theme_override_font_sizes/font_size = 14
+text = "Back"
 
 [node name="SkillBar" type="HBoxContainer" parent="HUD/HUDRoot"]
 layout_mode = 1
@@ -288,44 +321,77 @@ grow_horizontal = 2
 grow_vertical = 2
 
 [node name="ResultPopup" type="PanelContainer" parent="HUD/HUDRoot/ResultOverlay/CenterContainer"]
-custom_minimum_size = Vector2(460, 290)
+custom_minimum_size = Vector2(560, 360)
 layout_mode = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_popup")
 
 [node name="PopupMargin" type="MarginContainer" parent="HUD/HUDRoot/ResultOverlay/CenterContainer/ResultPopup"]
 layout_mode = 2
-theme_override_constants/margin_left = 32
-theme_override_constants/margin_top = 32
-theme_override_constants/margin_right = 32
-theme_override_constants/margin_bottom = 32
+theme_override_constants/margin_left = 28
+theme_override_constants/margin_top = 28
+theme_override_constants/margin_right = 28
+theme_override_constants/margin_bottom = 28
 
 [node name="PopupVBox" type="VBoxContainer" parent="HUD/HUDRoot/ResultOverlay/CenterContainer/ResultPopup/PopupMargin"]
 layout_mode = 2
-theme_override_constants/separation = 20
+theme_override_constants/separation = 16
 alignment = 1
 
 [node name="ResultTitle" type="Label" parent="HUD/HUDRoot/ResultOverlay/CenterContainer/ResultPopup/PopupMargin/PopupVBox"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.45, 0.88, 1, 1)
-theme_override_font_sizes/font_size = 48
+theme_override_font_sizes/font_size = 44
 text = "VICTORY"
 horizontal_alignment = 1
 
 [node name="ResultSubtitle" type="Label" parent="HUD/HUDRoot/ResultOverlay/CenterContainer/ResultPopup/PopupMargin/PopupVBox"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.8, 0.86, 0.94, 1)
-theme_override_font_sizes/font_size = 20
+theme_override_colors/font_color = Color(0.84, 0.9, 0.98, 1)
+theme_override_font_sizes/font_size = 18
 text = "All enemy realms conquered!"
 horizontal_alignment = 1
 
-[node name="RestartButton" type="Button" parent="HUD/HUDRoot/ResultOverlay/CenterContainer/ResultPopup/PopupMargin/PopupVBox"]
-custom_minimum_size = Vector2(220, 64)
+[node name="RewardDetailsLabel" type="Label" parent="HUD/HUDRoot/ResultOverlay/CenterContainer/ResultPopup/PopupMargin/PopupVBox"]
 layout_mode = 2
-size_flags_horizontal = 4
+theme_override_colors/font_color = Color(1, 0.88, 0.45, 1)
+theme_override_font_sizes/font_size = 17
+text = "Base Clear: +100 Gold"
+horizontal_alignment = 1
+
+[node name="PopupButtonsRow" type="HBoxContainer" parent="HUD/HUDRoot/ResultOverlay/CenterContainer/ResultPopup/PopupMargin/PopupVBox"]
+layout_mode = 2
+theme_override_constants/separation = 12
+alignment = 1
+
+[node name="NextLevelBtn" type="Button" parent="HUD/HUDRoot/ResultOverlay/CenterContainer/ResultPopup/PopupMargin/PopupVBox/PopupButtonsRow"]
+custom_minimum_size = Vector2(150, 56)
+layout_mode = 2
 focus_mode = 0
 theme_override_colors/font_color = Color(1, 1, 1, 1)
-theme_override_font_sizes/font_size = 24
+theme_override_font_sizes/font_size = 20
+theme_override_styles/normal = SubResource("StyleBoxFlat_next_normal")
+theme_override_styles/hover = SubResource("StyleBoxFlat_next_normal")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_next_normal")
+text = "Next Level"
+
+[node name="RestartButton" type="Button" parent="HUD/HUDRoot/ResultOverlay/CenterContainer/ResultPopup/PopupMargin/PopupVBox/PopupButtonsRow"]
+custom_minimum_size = Vector2(140, 56)
+layout_mode = 2
+focus_mode = 0
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 20
 theme_override_styles/normal = SubResource("StyleBoxFlat_restart_normal")
 theme_override_styles/hover = SubResource("StyleBoxFlat_restart_hover")
 theme_override_styles/pressed = SubResource("StyleBoxFlat_restart_hover")
-text = "Restart"
+text = "Replay"
+
+[node name="CampaignBtn" type="Button" parent="HUD/HUDRoot/ResultOverlay/CenterContainer/ResultPopup/PopupMargin/PopupVBox/PopupButtonsRow"]
+custom_minimum_size = Vector2(150, 56)
+layout_mode = 2
+focus_mode = 0
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 20
+theme_override_styles/normal = SubResource("StyleBoxFlat_campaign_normal")
+theme_override_styles/hover = SubResource("StyleBoxFlat_campaign_normal")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_campaign_normal")
+text = "Campaign"

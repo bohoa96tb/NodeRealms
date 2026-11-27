@@ -1,6 +1,7 @@
 class_name BattleManager
 extends Node2D
 
+const CAMPAIGN_SCENE_PATH: String = "res://scenes/CampaignScene.tscn"
 const PLAY_AREA := Rect2(90.0, 185.0, 540.0, 835.0)
 const TOUCH_SELECT_PADDING: float = 16.0
 const RATIO_OPTIONS := [0.25, 0.5, 0.75, 1.0]
@@ -8,6 +9,11 @@ const EMULATED_DEVICE_ID: int = -1
 
 const PORTAL_DASH_LENGTH: float = 14.0
 const PORTAL_GAP_LENGTH: float = 10.0
+
+const BONUS_CAPTURE_ALL_GOLD: int = 30
+const BONUS_NO_BASE_LOST_GOLD: int = 20
+const BONUS_FAST_CLEAR_GOLD: int = 20
+const FAST_CLEAR_LIMIT_SEC: float = 90.0
 
 @export var base_node_scene: PackedScene = preload("res://scenes/BaseNode.tscn")
 @export var army_group_scene: PackedScene = preload("res://scenes/ArmyGroup.tscn")
@@ -25,6 +31,7 @@ const PORTAL_GAP_LENGTH: float = 10.0
 @onready var tier_label: Label = $HUD/HUDRoot/TopBar/TopMargin/TopVBox/MapControlsRow/TierLabel
 @onready var next_map_btn: Button = $HUD/HUDRoot/TopBar/TopMargin/TopVBox/MapControlsRow/NextMapBtn
 @onready var tier_btn: Button = $HUD/HUDRoot/TopBar/TopMargin/TopVBox/MapControlsRow/TierBtn
+@onready var back_btn: Button = $HUD/HUDRoot/TopBar/TopMargin/TopVBox/MapControlsRow/BackBtn
 
 @onready var skill_btn: Button = $HUD/HUDRoot/SkillBar/SkillBtn
 @onready var switch_creature_btn: Button = $HUD/HUDRoot/SkillBar/SwitchCreatureBtn
@@ -36,13 +43,22 @@ const PORTAL_GAP_LENGTH: float = 10.0
 @onready var result_overlay: ColorRect = $HUD/HUDRoot/ResultOverlay
 @onready var result_title: Label = $HUD/HUDRoot/ResultOverlay/CenterContainer/ResultPopup/PopupMargin/PopupVBox/ResultTitle
 @onready var result_subtitle: Label = $HUD/HUDRoot/ResultOverlay/CenterContainer/ResultPopup/PopupMargin/PopupVBox/ResultSubtitle
-@onready var restart_button: Button = $HUD/HUDRoot/ResultOverlay/CenterContainer/ResultPopup/PopupMargin/PopupVBox/RestartButton
+@onready var reward_details_label: Label = $HUD/HUDRoot/ResultOverlay/CenterContainer/ResultPopup/PopupMargin/PopupVBox/RewardDetailsLabel
+@onready var next_level_btn: Button = $HUD/HUDRoot/ResultOverlay/CenterContainer/ResultPopup/PopupMargin/PopupVBox/PopupButtonsRow/NextLevelBtn
+@onready var restart_button: Button = $HUD/HUDRoot/ResultOverlay/CenterContainer/ResultPopup/PopupMargin/PopupVBox/PopupButtonsRow/RestartButton
+@onready var campaign_btn: Button = $HUD/HUDRoot/ResultOverlay/CenterContainer/ResultPopup/PopupMargin/PopupVBox/PopupButtonsRow/CampaignBtn
 
 var ratio_buttons: Array[Button] = []
 var all_nodes: Array[BaseNode] = []
 var selected_ratio: float = 0.5
 var current_seed: int = 0
 var current_tier: int = 1
+
+var _is_campaign_mode: bool = false
+var _current_level_info: Dictionary = {}
+var _current_ai_difficulty: CampaignData.AIDifficulty = CampaignData.AIDifficulty.NORMAL
+var _match_elapsed_time: float = 0.0
+var _player_lost_base: bool = false
 
 var _map_generator := MapGenerator.new()
 var _portal_visuals: Array[Line2D] = []
@@ -72,8 +88,17 @@ func _ready() -> void:
 	_connect_creature_signals()
 	_select_ratio_index(1) # Default 50%
 
-	var initial_seed: int = randi_range(10000, 99999)
-	load_generated_map(initial_seed, 1)
+	if creature_manager:
+		creature_manager.equipped_creature_id = SaveManager.get_equipped_creature()
+
+	if SaveManager.is_campaign:
+		load_campaign_level(SaveManager.current_level_id)
+	else:
+		_is_campaign_mode = false
+		_current_level_info = {}
+		var initial_seed: int = randi_range(10000, 99999)
+		load_generated_map(initial_seed, 1, CampaignData.AIDifficulty.NORMAL)
+
 	_refresh_creature_hud()
 
 
@@ -91,6 +116,8 @@ func _process(delta: float) -> void:
 
 	if _game_ended:
 		return
+
+	_match_elapsed_time += delta
 
 	# Cancel drag cleanly if source node is lost or captured mid-drag
 	if _drag_source_node != null:
@@ -144,10 +171,28 @@ func _unhandled_input(event: InputEvent) -> void:
 			_update_drag(_screen_to_world(event.position))
 
 
-func load_generated_map(seed_value: int, tier: int) -> void:
+func load_campaign_level(level_id: int) -> void:
+	SaveManager.start_campaign_level(level_id)
+	_is_campaign_mode = true
+	_current_level_info = CampaignData.get_level(level_id)
+	load_generated_map(
+		int(_current_level_info["seed"]),
+		int(_current_level_info["tier"]),
+		_current_level_info["ai_difficulty"]
+	)
+
+
+func load_generated_map(
+	seed_value: int,
+	tier: int,
+	ai_diff: CampaignData.AIDifficulty = CampaignData.AIDifficulty.NORMAL
+) -> void:
 	_cancel_drag()
 	_game_ended = false
 	_stats_refresh_timer = 0.0
+	_match_elapsed_time = 0.0
+	_player_lost_base = false
+	_current_ai_difficulty = ai_diff
 
 	if creature_manager:
 		creature_manager.set_paused(false)
@@ -178,6 +223,7 @@ func load_generated_map(seed_value: int, tier: int) -> void:
 		node.troops = float(node_info["troops"])
 		node.creature_manager = creature_manager
 		nodes_layer.add_child(node)
+		node.faction_changed.connect(_on_node_faction_changed)
 		all_nodes.append(node)
 		node_by_id[node.node_id] = node
 
@@ -197,7 +243,7 @@ func load_generated_map(seed_value: int, tier: int) -> void:
 	_build_portal_lines()
 
 	if ai_controller:
-		ai_controller.initialize(self)
+		ai_controller.initialize(self, _current_ai_difficulty)
 
 	_update_map_hud_labels()
 	_update_stats_label()
@@ -305,7 +351,6 @@ func _build_portal_lines() -> void:
 				continue
 			drawn_pairs[key] = true
 
-			# Soft glowing aura line underneath
 			var glow_line := Line2D.new()
 			glow_line.width = 12.0
 			glow_line.default_color = Color(0.42, 0.22, 0.68, 0.22)
@@ -316,7 +361,6 @@ func _build_portal_lines() -> void:
 			portals_layer.add_child(glow_line)
 			_portal_visuals.append(glow_line)
 
-			# Dashed glowing portal segments
 			var delta_vec: Vector2 = partner.position - node.position
 			var total_dist: float = delta_vec.length()
 			if total_dist < 1.0:
@@ -436,6 +480,11 @@ func _screen_to_world(screen_pos: Vector2) -> Vector2:
 	return get_viewport().get_canvas_transform().affine_inverse() * screen_pos
 
 
+func _on_node_faction_changed(_node: BaseNode, old_faction: BaseNode.Faction, new_faction: BaseNode.Faction) -> void:
+	if old_faction == BaseNode.Faction.PLAYER and new_faction != BaseNode.Faction.PLAYER:
+		_player_lost_base = true
+
+
 func _on_army_arrived(_army: ArmyGroup) -> void:
 	_update_stats_label()
 	_check_win_lose_conditions()
@@ -473,6 +522,13 @@ func _check_win_lose_conditions() -> void:
 		_show_end_screen(false)
 
 
+func _are_all_nodes_captured_by_player() -> bool:
+	for node in all_nodes:
+		if is_instance_valid(node) and node.faction != BaseNode.Faction.PLAYER:
+			return false
+	return not all_nodes.is_empty()
+
+
 func _show_end_screen(victory: bool) -> void:
 	_game_ended = true
 	_cancel_drag()
@@ -484,20 +540,84 @@ func _show_end_screen(victory: bool) -> void:
 	if victory:
 		result_title.text = "VICTORY"
 		result_title.add_theme_color_override("font_color", Color(0.45, 0.88, 1.0, 1.0))
-		result_subtitle.text = "All enemy realms conquered!"
+
+		if _is_campaign_mode:
+			var level_id: int = int(_current_level_info["level_id"])
+			var level_name: String = str(_current_level_info["name"])
+			var base_gold: int = int(_current_level_info["base_gold"])
+			var base_essence: int = int(_current_level_info["base_essence"])
+
+			var cap_all: bool = _are_all_nodes_captured_by_player()
+			var no_lost: bool = not _player_lost_base
+			var fast_clear: bool = _match_elapsed_time < FAST_CLEAR_LIMIT_SEC
+
+			var bonus_cap: int = BONUS_CAPTURE_ALL_GOLD if cap_all else 0
+			var bonus_no_lost: int = BONUS_NO_BASE_LOST_GOLD if no_lost else 0
+			var bonus_fast: int = BONUS_FAST_CLEAR_GOLD if fast_clear else 0
+			var total_gold: int = base_gold + bonus_cap + bonus_no_lost + bonus_fast
+
+			SaveManager.record_campaign_victory(level_id, total_gold, base_essence)
+
+			result_subtitle.text = "LV %d: %s Cleared! (%ds)" % [level_id, level_name, int(_match_elapsed_time)]
+			reward_details_label.text = (
+				"Base Clear: +%d Gold\n"
+				+ "%s Capture All Nodes: +%d Gold\n"
+				+ "%s No Base Lost: +%d Gold\n"
+				+ "%s Fast Clear (<90s): +%d Gold\n"
+				+ "Total Earned: +%d Gold  |  +%d Essence"
+			) % [
+				base_gold,
+				"[OK]" if cap_all else "[--]", bonus_cap,
+				"[OK]" if no_lost else "[--]", bonus_no_lost,
+				"[OK]" if fast_clear else "[--]", bonus_fast,
+				total_gold, base_essence,
+			]
+			reward_details_label.visible = true
+			next_level_btn.visible = level_id < CampaignData.TOTAL_LEVELS
+			restart_button.text = "Replay"
+		else:
+			SaveManager.record_sandbox_victory()
+			result_subtitle.text = "All enemy realms conquered! (%ds)" % int(_match_elapsed_time)
+			reward_details_label.text = "Sandbox Seed #%d (Tier %d) Cleared!" % [current_seed, current_tier]
+			reward_details_label.visible = true
+			next_level_btn.visible = false
+			restart_button.text = "Replay"
 	else:
+		SaveManager.record_defeat()
 		result_title.text = "DEFEAT"
 		result_title.add_theme_color_override("font_color", Color(1.0, 0.42, 0.42, 1.0))
 		result_subtitle.text = "Your realms have fallen!"
+		reward_details_label.text = "Match Time: %ds\nTip: Use your Creature Skill to push the front!" % int(_match_elapsed_time)
+		reward_details_label.visible = true
+		next_level_btn.visible = false
+		restart_button.text = "Retry"
 
 	result_overlay.visible = true
 
 
 func _update_map_hud_labels() -> void:
-	if seed_label:
-		seed_label.text = "Seed: #%d" % current_seed
-	if tier_label:
-		tier_label.text = "Tier: %d" % current_tier
+	if _is_campaign_mode:
+		if next_map_btn:
+			next_map_btn.visible = false
+		if tier_btn:
+			tier_btn.visible = false
+		if back_btn:
+			back_btn.visible = true
+		if seed_label:
+			seed_label.text = "VERDANT - LV %d (%s)" % [int(_current_level_info["level_id"]), str(_current_level_info["name"])]
+		if tier_label:
+			tier_label.text = CampaignData.get_difficulty_label(_current_ai_difficulty)
+	else:
+		if next_map_btn:
+			next_map_btn.visible = true
+		if tier_btn:
+			tier_btn.visible = true
+		if back_btn:
+			back_btn.visible = true
+		if seed_label:
+			seed_label.text = "Seed: #%d" % current_seed
+		if tier_label:
+			tier_label.text = "Tier: %d" % current_tier
 
 
 func _update_stats_label() -> void:
@@ -554,7 +674,7 @@ func _setup_hud_styles() -> void:
 	style_top_btn_hover.bg_color = Color(0.22, 0.32, 0.46, 1.0)
 	style_top_btn_hover.border_color = Color(0.6, 0.82, 1.0, 1.0)
 
-	for top_btn in [next_map_btn, tier_btn]:
+	for top_btn in [next_map_btn, tier_btn, back_btn]:
 		if top_btn:
 			top_btn.add_theme_stylebox_override("normal", style_top_btn)
 			top_btn.add_theme_stylebox_override("hover", style_top_btn_hover)
@@ -595,12 +715,18 @@ func _connect_hud_signals() -> void:
 		var btn: Button = ratio_buttons[i]
 		btn.pressed.connect(_on_ratio_button_pressed.bind(i))
 
+	if next_level_btn:
+		next_level_btn.pressed.connect(_on_next_level_pressed)
 	if restart_button:
 		restart_button.pressed.connect(_on_restart_pressed)
+	if campaign_btn:
+		campaign_btn.pressed.connect(_on_back_to_campaign_pressed)
 	if next_map_btn:
 		next_map_btn.pressed.connect(_on_next_map_pressed)
 	if tier_btn:
 		tier_btn.pressed.connect(_on_tier_button_pressed)
+	if back_btn:
+		back_btn.pressed.connect(_on_back_to_campaign_pressed)
 	if skill_btn:
 		skill_btn.pressed.connect(_on_skill_button_pressed)
 	if switch_creature_btn:
@@ -704,7 +830,8 @@ func _on_cooldown_updated(_remaining_cooldown: float, _remaining_active: float) 
 	_refresh_creature_hud()
 
 
-func _on_creature_changed(_creature: Dictionary) -> void:
+func _on_creature_changed(creature: Dictionary) -> void:
+	SaveManager.set_equipped_creature(str(creature["id"]))
 	for node in all_nodes:
 		if is_instance_valid(node):
 			node.queue_redraw()
@@ -733,14 +860,27 @@ func _select_ratio_index(index: int) -> void:
 
 func _on_next_map_pressed() -> void:
 	var next_seed: int = randi_range(10000, 99999)
-	load_generated_map(next_seed, current_tier)
+	load_generated_map(next_seed, current_tier, _current_ai_difficulty)
 
 
 func _on_tier_button_pressed() -> void:
 	var next_tier: int = (current_tier % 4) + 1
 	var next_seed: int = randi_range(10000, 99999)
-	load_generated_map(next_seed, next_tier)
+	load_generated_map(next_seed, next_tier, _current_ai_difficulty)
+
+
+func _on_next_level_pressed() -> void:
+	if _is_campaign_mode:
+		var next_id: int = mini(CampaignData.TOTAL_LEVELS, int(_current_level_info["level_id"]) + 1)
+		load_campaign_level(next_id)
 
 
 func _on_restart_pressed() -> void:
-	load_generated_map(current_seed, current_tier)
+	if _is_campaign_mode:
+		load_campaign_level(int(_current_level_info["level_id"]))
+	else:
+		load_generated_map(current_seed, current_tier, _current_ai_difficulty)
+
+
+func _on_back_to_campaign_pressed() -> void:
+	get_tree().change_scene_to_file(CAMPAIGN_SCENE_PATH)

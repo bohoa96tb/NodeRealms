@@ -1,6 +1,8 @@
 class_name BaseNode
 extends Area2D
 
+signal faction_changed(node: BaseNode, old_faction: Faction, new_faction: Faction)
+
 enum Faction { NEUTRAL, PLAYER, ENEMY }
 
 const RADIUS: float = 42.0
@@ -22,8 +24,11 @@ const COLOR_PORTAL_CYAN := Color.CYAN
 @export var faction: Faction = Faction.NEUTRAL:
 	set(value):
 		if faction != value:
+			var prev_faction: Faction = faction
 			faction = value
 			_refresh_visuals()
+			if is_inside_tree():
+				faction_changed.emit(self, prev_faction, faction)
 @export var troops: float = 10.0:
 	set(value):
 		troops = maxf(0.0, value)
