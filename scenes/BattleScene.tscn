@@ -6,7 +6,7 @@
 [ext_resource type="PackedScene" path="res://scenes/ArmyGroup.tscn" id="4_army_group"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_topbar"]
-bg_color = Color(0.09, 0.12, 0.18, 0.9)
+bg_color = Color(0.09, 0.12, 0.18, 0.92)
 border_width_bottom = 2
 border_color = Color(0.22, 0.3, 0.42, 0.85)
 
@@ -53,6 +53,7 @@ corner_radius_bottom_left = 12
 
 [node name="BattleScene" type="Node2D"]
 script = ExtResource("1_battle_manager")
+base_node_scene = ExtResource("3_base_node")
 army_group_scene = ExtResource("4_army_group")
 
 [node name="Camera2D" type="Camera2D" parent="."]
@@ -68,49 +69,9 @@ color = Color(0.067, 0.086, 0.125, 1)
 
 [node name="PathsLayer" type="Node2D" parent="."]
 
+[node name="PortalsLayer" type="Node2D" parent="."]
+
 [node name="NodesLayer" type="Node2D" parent="."]
-
-[node name="BaseNode1" parent="NodesLayer" instance=ExtResource("3_base_node")]
-position = Vector2(360, 190)
-node_id = 1
-faction = 2
-troops = 20.0
-
-[node name="BaseNode2" parent="NodesLayer" instance=ExtResource("3_base_node")]
-position = Vector2(175, 390)
-node_id = 2
-faction = 0
-troops = 12.0
-
-[node name="BaseNode3" parent="NodesLayer" instance=ExtResource("3_base_node")]
-position = Vector2(545, 390)
-node_id = 3
-faction = 0
-troops = 12.0
-
-[node name="BaseNode4" parent="NodesLayer" instance=ExtResource("3_base_node")]
-position = Vector2(360, 620)
-node_id = 4
-faction = 0
-troops = 15.0
-
-[node name="BaseNode5" parent="NodesLayer" instance=ExtResource("3_base_node")]
-position = Vector2(175, 850)
-node_id = 5
-faction = 0
-troops = 12.0
-
-[node name="BaseNode6" parent="NodesLayer" instance=ExtResource("3_base_node")]
-position = Vector2(545, 850)
-node_id = 6
-faction = 0
-troops = 12.0
-
-[node name="BaseNode7" parent="NodesLayer" instance=ExtResource("3_base_node")]
-position = Vector2(360, 1050)
-node_id = 7
-faction = 1
-troops = 20.0
 
 [node name="ArmyGroupsLayer" type="Node2D" parent="."]
 
@@ -139,7 +100,7 @@ mouse_filter = 2
 layout_mode = 1
 anchors_preset = 10
 anchor_right = 1.0
-offset_bottom = 96.0
+offset_bottom = 122.0
 grow_horizontal = 2
 mouse_filter = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_topbar")
@@ -148,29 +109,73 @@ theme_override_styles/panel = SubResource("StyleBoxFlat_topbar")
 layout_mode = 2
 mouse_filter = 2
 theme_override_constants/margin_left = 20
-theme_override_constants/margin_top = 12
+theme_override_constants/margin_top = 10
 theme_override_constants/margin_right = 20
-theme_override_constants/margin_bottom = 12
+theme_override_constants/margin_bottom = 10
 
 [node name="TopVBox" type="VBoxContainer" parent="HUD/HUDRoot/TopBar/TopMargin"]
 layout_mode = 2
 mouse_filter = 2
-theme_override_constants/separation = 4
+theme_override_constants/separation = 8
 alignment = 1
 
-[node name="TitleLabel" type="Label" parent="HUD/HUDRoot/TopBar/TopMargin/TopVBox"]
+[node name="TopHeaderRow" type="HBoxContainer" parent="HUD/HUDRoot/TopBar/TopMargin/TopVBox"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.92, 0.95, 1, 1)
-theme_override_font_sizes/font_size = 26
-text = "NODE REALMS"
-horizontal_alignment = 1
+mouse_filter = 2
+theme_override_constants/separation = 12
 
-[node name="StatsLabel" type="Label" parent="HUD/HUDRoot/TopBar/TopMargin/TopVBox"]
+[node name="TitleLabel" type="Label" parent="HUD/HUDRoot/TopBar/TopMargin/TopVBox/TopHeaderRow"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.68, 0.78, 0.9, 1)
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.92, 0.95, 1, 1)
+theme_override_font_sizes/font_size = 24
+text = "NODE REALMS"
+
+[node name="StatsLabel" type="Label" parent="HUD/HUDRoot/TopBar/TopMargin/TopVBox/TopHeaderRow"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.75, 0.85, 0.96, 1)
+theme_override_font_sizes/font_size = 18
+text = "BLUE 20  |  RED 20"
+horizontal_alignment = 2
+vertical_alignment = 1
+
+[node name="MapControlsRow" type="HBoxContainer" parent="HUD/HUDRoot/TopBar/TopMargin/TopVBox"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 10
+
+[node name="SeedLabel" type="Label" parent="HUD/HUDRoot/TopBar/TopMargin/TopVBox/MapControlsRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.55, 0.85, 1, 1)
 theme_override_font_sizes/font_size = 16
-text = "REALM FORCES   BLUE: 20   |   RED: 20"
+text = "Seed: #00000"
+vertical_alignment = 1
+
+[node name="TierLabel" type="Label" parent="HUD/HUDRoot/TopBar/TopMargin/TopVBox/MapControlsRow"]
+custom_minimum_size = Vector2(72, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.84, 0.68, 1, 1)
+theme_override_font_sizes/font_size = 16
+text = "Tier: 1"
 horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="TierBtn" type="Button" parent="HUD/HUDRoot/TopBar/TopMargin/TopVBox/MapControlsRow"]
+custom_minimum_size = Vector2(88, 38)
+layout_mode = 2
+focus_mode = 0
+theme_override_colors/font_color = Color(0.92, 0.95, 1, 1)
+theme_override_font_sizes/font_size = 15
+text = "Tier +"
+
+[node name="NextMapBtn" type="Button" parent="HUD/HUDRoot/TopBar/TopMargin/TopVBox/MapControlsRow"]
+custom_minimum_size = Vector2(114, 38)
+layout_mode = 2
+focus_mode = 0
+theme_override_colors/font_color = Color(0.92, 0.95, 1, 1)
+theme_override_font_sizes/font_size = 15
+text = "Next Map"
 
 [node name="BottomBar" type="PanelContainer" parent="HUD/HUDRoot"]
 layout_mode = 1

@@ -15,6 +15,8 @@ const COLOR_NEUTRAL_RIM := Color(0.62, 0.68, 0.72, 1.0)
 const COLOR_SELECTED_GLOW := Color(1.0, 0.92, 0.55, 0.95)
 const COLOR_VALID_TARGET := Color(0.33, 0.94, 0.77, 0.85)
 const COLOR_HOVERED_TARGET := Color(1.0, 1.0, 1.0, 0.95)
+const COLOR_PORTAL_ORCHID := Color.MEDIUM_ORCHID
+const COLOR_PORTAL_CYAN := Color.CYAN
 
 @export var node_id: int = 0
 @export var faction: Faction = Faction.NEUTRAL:
@@ -31,6 +33,7 @@ const COLOR_HOVERED_TARGET := Color(1.0, 1.0, 1.0, 0.95)
 @export var production_rate: float = 0.5
 @export var power_multiplier: float = 1.0
 @export var connected_nodes: Array[BaseNode] = []
+@export var portal_nodes: Array[BaseNode] = []
 
 @onready var troop_label: Label = $TroopLabel
 
@@ -53,6 +56,7 @@ var is_hovered_target: bool = false:
 			queue_redraw()
 
 var _is_mouse_over: bool = false
+var _portal_angle: float = 0.0
 var _pulse_tween: Tween
 
 
@@ -67,6 +71,10 @@ func _process(delta: float) -> void:
 		if troops < float(max_troops):
 			troops = minf(float(max_troops), troops + production_rate * delta)
 
+	if has_portal():
+		_portal_angle = fmod(_portal_angle + delta * 1.8, TAU)
+		queue_redraw()
+
 
 func _draw() -> void:
 	var fill_color: Color = _get_fill_color()
@@ -75,15 +83,24 @@ func _draw() -> void:
 	# Soft ambient shadow behind node
 	draw_circle(Vector2(0.0, 4.0), RADIUS + 3.0, Color(0.0, 0.0, 0.0, 0.35))
 
+	# Rotating portal halo if this node hosts a Portal
+	if has_portal():
+		var portal_radius: float = RADIUS + 11.0
+		draw_circle(Vector2.ZERO, portal_radius + 3.0, Color(0.45, 0.2, 0.65, 0.16))
+		draw_arc(Vector2.ZERO, portal_radius, _portal_angle, _portal_angle + PI * 0.68, 24, COLOR_PORTAL_ORCHID, 3.0, true)
+		draw_arc(Vector2.ZERO, portal_radius, _portal_angle + PI, _portal_angle + PI * 1.68, 24, COLOR_PORTAL_CYAN, 3.0, true)
+		draw_circle(Vector2.from_angle(_portal_angle) * portal_radius, 3.5, COLOR_PORTAL_ORCHID)
+		draw_circle(Vector2.from_angle(_portal_angle + PI) * portal_radius, 3.5, COLOR_PORTAL_CYAN)
+
 	# Selection / target highlight rings
 	if is_selected:
-		draw_circle(Vector2.ZERO, RADIUS + 11.0, Color(1.0, 0.92, 0.55, 0.22))
-		draw_arc(Vector2.ZERO, RADIUS + 7.0, 0.0, TAU, 48, COLOR_SELECTED_GLOW, 3.5, true)
+		draw_circle(Vector2.ZERO, RADIUS + 10.0, Color(1.0, 0.92, 0.55, 0.22))
+		draw_arc(Vector2.ZERO, RADIUS + 6.5, 0.0, TAU, 48, COLOR_SELECTED_GLOW, 3.5, true)
 	elif is_hovered_target:
-		draw_circle(Vector2.ZERO, RADIUS + 11.0, Color(0.33, 0.94, 0.77, 0.24))
-		draw_arc(Vector2.ZERO, RADIUS + 7.0, 0.0, TAU, 48, COLOR_HOVERED_TARGET, 3.5, true)
+		draw_circle(Vector2.ZERO, RADIUS + 10.0, Color(0.33, 0.94, 0.77, 0.24))
+		draw_arc(Vector2.ZERO, RADIUS + 6.5, 0.0, TAU, 48, COLOR_HOVERED_TARGET, 3.5, true)
 	elif is_valid_target:
-		draw_arc(Vector2.ZERO, RADIUS + 6.0, 0.0, TAU, 48, COLOR_VALID_TARGET, 2.5, true)
+		draw_arc(Vector2.ZERO, RADIUS + 5.5, 0.0, TAU, 48, COLOR_VALID_TARGET, 2.5, true)
 	elif _is_mouse_over and faction == Faction.PLAYER:
 		draw_arc(Vector2.ZERO, RADIUS + 5.0, 0.0, TAU, 48, Color(1.0, 1.0, 1.0, 0.4), 2.0, true)
 
@@ -144,8 +161,27 @@ func receive_army(incoming_faction: Faction, incoming_troops: int, attack_mult: 
 		play_pulse(0.92)
 
 
+func has_portal() -> bool:
+	return not portal_nodes.is_empty()
+
+
 func is_connected_to(other: BaseNode) -> bool:
-	return other != null and other in connected_nodes
+	return other != null and (other in connected_nodes or other in portal_nodes)
+
+
+func is_portal_connected_to(other: BaseNode) -> bool:
+	return other != null and other in portal_nodes
+
+
+func get_all_reachable_nodes() -> Array[BaseNode]:
+	var result: Array[BaseNode] = []
+	for n in connected_nodes:
+		if is_instance_valid(n) and not result.has(n):
+			result.append(n)
+	for p in portal_nodes:
+		if is_instance_valid(p) and not result.has(p):
+			result.append(p)
+	return result
 
 
 func play_pulse(peak_scale: float = 1.15) -> void:

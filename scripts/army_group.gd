@@ -4,6 +4,7 @@ extends Area2D
 signal arrived(army: ArmyGroup)
 
 const RADIUS: float = 16.0
+const PORTAL_SPEED_MULTIPLIER: float = 1.8
 
 @export var move_speed: float = 220.0
 
@@ -12,9 +13,11 @@ var troops: int = 0
 var power_multiplier: float = 1.0
 var source_node: BaseNode = null
 var target_node: BaseNode = null
+var is_portal_travel: bool = false
 var is_resolved: bool = false
 
 var _move_dir: Vector2 = Vector2.RIGHT
+var _warp_pulse: float = 0.0
 
 @onready var troop_label: Label = $TroopLabel
 
@@ -25,16 +28,24 @@ func _ready() -> void:
 	queue_redraw()
 
 
-func setup(from_node: BaseNode, to_node: BaseNode, troop_count: int) -> void:
+func setup(from_node: BaseNode, to_node: BaseNode, troop_count: int, portal_travel: bool = false) -> void:
 	source_node = from_node
 	target_node = to_node
 	faction = from_node.faction
 	troops = troop_count
 	power_multiplier = from_node.power_multiplier
+	is_portal_travel = portal_travel
 	global_position = from_node.global_position
 	_move_dir = (to_node.global_position - from_node.global_position).normalized()
 	if troop_label:
 		_update_label()
+	if is_portal_travel and is_inside_tree():
+		scale = Vector2(1.25, 1.25)
+		modulate = Color(1.3, 1.7, 2.0, 1.0)
+		var warp_tween: Tween = create_tween()
+		warp_tween.set_parallel(true)
+		warp_tween.tween_property(self, "scale", Vector2.ONE, 0.22).set_ease(Tween.EASE_OUT)
+		warp_tween.tween_property(self, "modulate", Color.WHITE, 0.25).set_ease(Tween.EASE_OUT)
 	queue_redraw()
 
 
@@ -46,9 +57,10 @@ func _process(delta: float) -> void:
 		queue_free()
 		return
 
+	var effective_speed: float = move_speed * (PORTAL_SPEED_MULTIPLIER if is_portal_travel else 1.0)
 	var to_target: Vector2 = target_node.global_position - global_position
 	var distance: float = to_target.length()
-	var step: float = move_speed * delta
+	var step: float = effective_speed * delta
 
 	if distance <= step or distance <= BaseNode.RADIUS * 0.75:
 		_resolve_arrival()
@@ -57,6 +69,10 @@ func _process(delta: float) -> void:
 	_move_dir = to_target / distance
 	global_position += _move_dir * step
 
+	if is_portal_travel:
+		_warp_pulse = fmod(_warp_pulse + delta * 12.0, TAU)
+		queue_redraw()
+
 
 func _draw() -> void:
 	var fill_color: Color = _get_fill_color()
@@ -64,6 +80,12 @@ func _draw() -> void:
 
 	# Shadow
 	draw_circle(Vector2(0.0, 2.0), RADIUS + 2.0, Color(0.0, 0.0, 0.0, 0.35))
+
+	# Portal warp aura & trail while traveling across a Portal
+	if is_portal_travel:
+		var pulse_r: float = RADIUS + 5.0 + sin(_warp_pulse) * 1.5
+		draw_line(Vector2.ZERO, -_move_dir * (RADIUS + 16.0), Color(0.0, 0.9, 1.0, 0.55), 5.0, true)
+		draw_arc(Vector2.ZERO, pulse_r, 0.0, TAU, 32, Color.CYAN, 2.0, true)
 
 	# Direction chevron ahead of the circle
 	var tip: Vector2 = _move_dir * (RADIUS + 6.0)

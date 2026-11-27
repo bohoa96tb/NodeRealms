@@ -1,32 +1,30 @@
 class_name BattleManager
 extends Node2D
 
-const DEFAULT_GRAPH_EDGES := [
-	Vector2i(1, 2),
-	Vector2i(1, 3),
-	Vector2i(2, 4),
-	Vector2i(2, 5),
-	Vector2i(3, 4),
-	Vector2i(3, 6),
-	Vector2i(4, 5),
-	Vector2i(4, 6),
-	Vector2i(5, 7),
-	Vector2i(6, 7),
-]
-
+const PLAY_AREA := Rect2(90.0, 190.0, 540.0, 890.0)
 const TOUCH_SELECT_PADDING: float = 16.0
 const RATIO_OPTIONS := [0.25, 0.5, 0.75, 1.0]
 const EMULATED_DEVICE_ID: int = -1
 
+const PORTAL_DASH_LENGTH: float = 14.0
+const PORTAL_GAP_LENGTH: float = 10.0
+
+@export var base_node_scene: PackedScene = preload("res://scenes/BaseNode.tscn")
 @export var army_group_scene: PackedScene = preload("res://scenes/ArmyGroup.tscn")
 
 @onready var paths_layer: Node2D = $PathsLayer
+@onready var portals_layer: Node2D = $PortalsLayer
 @onready var nodes_layer: Node2D = $NodesLayer
 @onready var army_groups_layer: Node2D = $ArmyGroupsLayer
 @onready var drag_line: Line2D = $DragLine
 @onready var ai_controller: AIController = $AIController
 
-@onready var stats_label: Label = $HUD/HUDRoot/TopBar/TopMargin/TopVBox/StatsLabel
+@onready var stats_label: Label = $HUD/HUDRoot/TopBar/TopMargin/TopVBox/TopHeaderRow/StatsLabel
+@onready var seed_label: Label = $HUD/HUDRoot/TopBar/TopMargin/TopVBox/MapControlsRow/SeedLabel
+@onready var tier_label: Label = $HUD/HUDRoot/TopBar/TopMargin/TopVBox/MapControlsRow/TierLabel
+@onready var next_map_btn: Button = $HUD/HUDRoot/TopBar/TopMargin/TopVBox/MapControlsRow/NextMapBtn
+@onready var tier_btn: Button = $HUD/HUDRoot/TopBar/TopMargin/TopVBox/MapControlsRow/TierBtn
+
 @onready var btn_25: Button = $HUD/HUDRoot/BottomBar/BottomMargin/RatioContainer/Btn25
 @onready var btn_50: Button = $HUD/HUDRoot/BottomBar/BottomMargin/RatioContainer/Btn50
 @onready var btn_75: Button = $HUD/HUDRoot/BottomBar/BottomMargin/RatioContainer/Btn75
@@ -39,6 +37,12 @@ const EMULATED_DEVICE_ID: int = -1
 var ratio_buttons: Array[Button] = []
 var all_nodes: Array[BaseNode] = []
 var selected_ratio: float = 0.5
+var current_seed: int = 0
+var current_tier: int = 1
+
+var _map_generator := MapGenerator.new()
+var _portal_visuals: Array[Line2D] = []
+var _portal_anim_time: float = 0.0
 
 var _drag_source_node: BaseNode = null
 var _hovered_target_node: BaseNode = null
@@ -52,25 +56,24 @@ var _style_btn_active: StyleBoxFlat
 
 
 func _ready() -> void:
-	ratio_buttons = [btn_25, btn_50, btn_75, btn_100]
-	_collect_nodes()
-	_setup_graph_connections()
-	_build_path_lines()
+	randomize()
+	ratio_buttons.assign([btn_25, btn_50, btn_75, btn_100])
 	_setup_hud_styles()
 	_connect_hud_signals()
 	_select_ratio_index(1) # Default 50%
 
-	if drag_line:
-		drag_line.visible = false
-	if result_overlay:
-		result_overlay.visible = false
-	if ai_controller:
-		ai_controller.initialize(self)
-
-	_update_stats_label()
+	var initial_seed: int = randi_range(10000, 99999)
+	load_generated_map(initial_seed, 1)
 
 
 func _process(delta: float) -> void:
+	_portal_anim_time += delta
+	if not _portal_visuals.is_empty():
+		var pulse_alpha: float = 0.65 + 0.3 * sin(_portal_anim_time * 3.5)
+		for line in _portal_visuals:
+			if is_instance_valid(line):
+				line.modulate.a = pulse_alpha
+
 	if _game_ended:
 		return
 
@@ -126,6 +129,60 @@ func _unhandled_input(event: InputEvent) -> void:
 			_update_drag(_screen_to_world(event.position))
 
 
+func load_generated_map(seed_value: int, tier: int) -> void:
+	_cancel_drag()
+	_game_ended = false
+	_stats_refresh_timer = 0.0
+
+	if drag_line:
+		drag_line.visible = false
+	if result_overlay:
+		result_overlay.visible = false
+
+	_clear_layer_children(army_groups_layer)
+	_clear_layer_children(nodes_layer)
+	_clear_layer_children(paths_layer)
+	_clear_layer_children(portals_layer)
+	all_nodes.clear()
+	_portal_visuals.clear()
+
+	var map_data: Dictionary = _map_generator.generate_map(seed_value, tier, PLAY_AREA)
+	current_seed = int(map_data["seed"])
+	current_tier = int(map_data["tier"])
+
+	var node_by_id: Dictionary = {}
+	for node_info in map_data["nodes"]:
+		var node: BaseNode = base_node_scene.instantiate() as BaseNode
+		node.node_id = int(node_info["id"])
+		node.position = node_info["position"]
+		node.faction = node_info["faction"] as BaseNode.Faction
+		node.troops = float(node_info["troops"])
+		nodes_layer.add_child(node)
+		all_nodes.append(node)
+		node_by_id[node.node_id] = node
+
+	for edge in map_data["edges"]:
+		var node_a: BaseNode = node_by_id.get(edge.x) as BaseNode
+		var node_b: BaseNode = node_by_id.get(edge.y) as BaseNode
+		if node_a != null and node_b != null:
+			_add_bidirectional_link(node_a, node_b, false)
+
+	for portal in map_data["portal_pairs"]:
+		var node_a: BaseNode = node_by_id.get(portal.x) as BaseNode
+		var node_b: BaseNode = node_by_id.get(portal.y) as BaseNode
+		if node_a != null and node_b != null:
+			_add_bidirectional_link(node_a, node_b, true)
+
+	_build_path_lines()
+	_build_portal_lines()
+
+	if ai_controller:
+		ai_controller.initialize(self)
+
+	_update_map_hud_labels()
+	_update_stats_label()
+
+
 func spawn_army(from_node: BaseNode, to_node: BaseNode, ratio: float) -> void:
 	if _game_ended:
 		return
@@ -138,9 +195,10 @@ func spawn_army(from_node: BaseNode, to_node: BaseNode, ratio: float) -> void:
 	if sent_troops <= 0:
 		return
 
+	var is_portal: bool = from_node.is_portal_connected_to(to_node)
 	var army: ArmyGroup = army_group_scene.instantiate() as ArmyGroup
 	army_groups_layer.add_child(army)
-	army.setup(from_node, to_node, sent_troops)
+	army.setup(from_node, to_node, sent_troops, is_portal)
 	army.arrived.connect(_on_army_arrived)
 	_update_stats_label()
 
@@ -157,51 +215,31 @@ func get_nodes_by_faction(target_faction: BaseNode.Faction) -> Array[BaseNode]:
 	return result
 
 
-func _collect_nodes() -> void:
-	all_nodes.clear()
-	for child in nodes_layer.get_children():
-		if child is BaseNode:
-			all_nodes.append(child as BaseNode)
+func _clear_layer_children(layer: Node) -> void:
+	if layer == null:
+		return
+	var children: Array[Node] = layer.get_children()
+	for child in children:
+		layer.remove_child(child)
+		child.queue_free()
 
 
-func _setup_graph_connections() -> void:
-	var has_existing_links: bool = false
-	for node in all_nodes:
-		if not node.connected_nodes.is_empty():
-			has_existing_links = true
-			break
-
-	if not has_existing_links:
-		var by_id: Dictionary = {}
-		for node in all_nodes:
-			by_id[node.node_id] = node
-
-		for edge in DEFAULT_GRAPH_EDGES:
-			var node_a: BaseNode = by_id.get(edge.x) as BaseNode
-			var node_b: BaseNode = by_id.get(edge.y) as BaseNode
-			if node_a != null and node_b != null:
-				_add_bidirectional_link(node_a, node_b)
-	else:
-		# Ensure any configured connections remain bidirectional
-		for node in all_nodes:
-			for neighbor in node.connected_nodes:
-				if neighbor != null and neighbor != node and not neighbor.connected_nodes.has(node):
-					neighbor.connected_nodes.append(node)
-
-
-func _add_bidirectional_link(node_a: BaseNode, node_b: BaseNode) -> void:
+func _add_bidirectional_link(node_a: BaseNode, node_b: BaseNode, is_portal: bool) -> void:
 	if node_a == node_b:
 		return
-	if not node_a.connected_nodes.has(node_b):
-		node_a.connected_nodes.append(node_b)
-	if not node_b.connected_nodes.has(node_a):
-		node_b.connected_nodes.append(node_a)
+	if is_portal:
+		if not node_a.portal_nodes.has(node_b):
+			node_a.portal_nodes.append(node_b)
+		if not node_b.portal_nodes.has(node_a):
+			node_b.portal_nodes.append(node_a)
+	else:
+		if not node_a.connected_nodes.has(node_b):
+			node_a.connected_nodes.append(node_b)
+		if not node_b.connected_nodes.has(node_a):
+			node_b.connected_nodes.append(node_a)
 
 
 func _build_path_lines() -> void:
-	for child in paths_layer.get_children():
-		child.queue_free()
-
 	var drawn_pairs: Dictionary = {}
 	for node in all_nodes:
 		for neighbor in node.connected_nodes:
@@ -233,6 +271,56 @@ func _build_path_lines() -> void:
 			paths_layer.add_child(inner_line)
 
 
+func _build_portal_lines() -> void:
+	var drawn_pairs: Dictionary = {}
+	for node in all_nodes:
+		for partner in node.portal_nodes:
+			if partner == null or partner == node:
+				continue
+			var id_a: int = mini(node.get_instance_id(), partner.get_instance_id())
+			var id_b: int = maxi(node.get_instance_id(), partner.get_instance_id())
+			var key: String = "%d_%d" % [id_a, id_b]
+			if drawn_pairs.has(key):
+				continue
+			drawn_pairs[key] = true
+
+			# Soft glowing aura line underneath
+			var glow_line := Line2D.new()
+			glow_line.width = 12.0
+			glow_line.default_color = Color(0.42, 0.22, 0.68, 0.22)
+			glow_line.begin_cap_mode = Line2D.LINE_CAP_ROUND
+			glow_line.end_cap_mode = Line2D.LINE_CAP_ROUND
+			glow_line.add_point(node.position)
+			glow_line.add_point(partner.position)
+			portals_layer.add_child(glow_line)
+			_portal_visuals.append(glow_line)
+
+			# Dashed glowing portal segments
+			var delta_vec: Vector2 = partner.position - node.position
+			var total_dist: float = delta_vec.length()
+			if total_dist < 1.0:
+				continue
+			var dir: Vector2 = delta_vec / total_dist
+			var step_len: float = PORTAL_DASH_LENGTH + PORTAL_GAP_LENGTH
+			var cursor: float = 0.0
+			var dash_idx: int = 0
+
+			while cursor < total_dist:
+				var seg_end: float = minf(cursor + PORTAL_DASH_LENGTH, total_dist)
+				var dash_line := Line2D.new()
+				dash_line.width = 3.5
+				dash_line.default_color = Color.CYAN if (dash_idx % 2 == 0) else Color.MEDIUM_ORCHID
+				dash_line.begin_cap_mode = Line2D.LINE_CAP_ROUND
+				dash_line.end_cap_mode = Line2D.LINE_CAP_ROUND
+				dash_line.add_point(node.position + dir * cursor)
+				dash_line.add_point(node.position + dir * seg_end)
+				portals_layer.add_child(dash_line)
+				_portal_visuals.append(dash_line)
+
+				cursor += step_len
+				dash_idx += 1
+
+
 func _begin_drag(world_pos: Vector2) -> bool:
 	var hit_node: BaseNode = _find_node_at_position(world_pos)
 	if hit_node == null or hit_node.faction != BaseNode.Faction.PLAYER:
@@ -242,9 +330,8 @@ func _begin_drag(world_pos: Vector2) -> bool:
 	_drag_source_node.is_selected = true
 	_drag_source_node.play_pulse(1.1)
 
-	for neighbor in _drag_source_node.connected_nodes:
-		if is_instance_valid(neighbor):
-			neighbor.is_valid_target = true
+	for neighbor in _drag_source_node.get_all_reachable_nodes():
+		neighbor.is_valid_target = true
 
 	_update_drag(world_pos)
 	return true
@@ -270,7 +357,13 @@ func _update_drag(world_pos: Vector2) -> void:
 	drag_line.clear_points()
 	drag_line.add_point(_drag_source_node.global_position)
 	drag_line.add_point(end_pos)
-	drag_line.default_color = Color(0.33, 0.94, 0.77, 0.95) if _hovered_target_node != null else Color(0.45, 0.78, 1.0, 0.85)
+
+	if _hovered_target_node != null and _drag_source_node.is_portal_connected_to(_hovered_target_node):
+		drag_line.default_color = Color.CYAN
+	elif _hovered_target_node != null:
+		drag_line.default_color = Color(0.33, 0.94, 0.77, 0.95)
+	else:
+		drag_line.default_color = Color(0.45, 0.78, 1.0, 0.85)
 	drag_line.visible = true
 
 
@@ -289,9 +382,8 @@ func _end_drag(world_pos: Vector2) -> void:
 func _cancel_drag() -> void:
 	if _drag_source_node != null and is_instance_valid(_drag_source_node):
 		_drag_source_node.is_selected = false
-		for neighbor in _drag_source_node.connected_nodes:
-			if is_instance_valid(neighbor):
-				neighbor.is_valid_target = false
+		for neighbor in _drag_source_node.get_all_reachable_nodes():
+			neighbor.is_valid_target = false
 
 	if _hovered_target_node != null and is_instance_valid(_hovered_target_node):
 		_hovered_target_node.is_hovered_target = false
@@ -376,6 +468,13 @@ func _show_end_screen(victory: bool) -> void:
 	result_overlay.visible = true
 
 
+func _update_map_hud_labels() -> void:
+	if seed_label:
+		seed_label.text = "Seed: #%d" % current_seed
+	if tier_label:
+		tier_label.text = "Tier: %d" % current_tier
+
+
 func _update_stats_label() -> void:
 	if stats_label == null:
 		return
@@ -400,7 +499,7 @@ func _update_stats_label() -> void:
 			elif army.faction == BaseNode.Faction.ENEMY:
 				enemy_troops += army.troops
 
-	stats_label.text = "REALM FORCES   BLUE: %d   |   RED: %d" % [player_troops, enemy_troops]
+	stats_label.text = "BLUE %d  |  RED %d" % [player_troops, enemy_troops]
 
 
 func _setup_hud_styles() -> void:
@@ -416,6 +515,27 @@ func _setup_hud_styles() -> void:
 	_style_btn_active.set_border_width_all(3)
 	_style_btn_active.set_corner_radius_all(12)
 
+	var style_top_btn := StyleBoxFlat.new()
+	style_top_btn.bg_color = Color(0.16, 0.22, 0.32, 0.95)
+	style_top_btn.border_color = Color(0.4, 0.54, 0.72, 0.9)
+	style_top_btn.set_border_width_all(2)
+	style_top_btn.set_corner_radius_all(8)
+	style_top_btn.content_margin_left = 10.0
+	style_top_btn.content_margin_right = 10.0
+	style_top_btn.content_margin_top = 4.0
+	style_top_btn.content_margin_bottom = 4.0
+
+	var style_top_btn_hover := style_top_btn.duplicate() as StyleBoxFlat
+	style_top_btn_hover.bg_color = Color(0.22, 0.32, 0.46, 1.0)
+	style_top_btn_hover.border_color = Color(0.6, 0.82, 1.0, 1.0)
+
+	for top_btn in [next_map_btn, tier_btn]:
+		if top_btn:
+			top_btn.add_theme_stylebox_override("normal", style_top_btn)
+			top_btn.add_theme_stylebox_override("hover", style_top_btn_hover)
+			top_btn.add_theme_stylebox_override("pressed", style_top_btn_hover)
+			top_btn.add_theme_stylebox_override("focus", style_top_btn)
+
 
 func _connect_hud_signals() -> void:
 	for i in range(ratio_buttons.size()):
@@ -424,6 +544,10 @@ func _connect_hud_signals() -> void:
 
 	if restart_button:
 		restart_button.pressed.connect(_on_restart_pressed)
+	if next_map_btn:
+		next_map_btn.pressed.connect(_on_next_map_pressed)
+	if tier_btn:
+		tier_btn.pressed.connect(_on_tier_button_pressed)
 
 
 func _on_ratio_button_pressed(index: int) -> void:
@@ -446,5 +570,16 @@ func _select_ratio_index(index: int) -> void:
 		btn.add_theme_color_override("font_color", Color.WHITE if is_active else Color(0.75, 0.82, 0.9, 1.0))
 
 
+func _on_next_map_pressed() -> void:
+	var next_seed: int = randi_range(10000, 99999)
+	load_generated_map(next_seed, current_tier)
+
+
+func _on_tier_button_pressed() -> void:
+	var next_tier: int = (current_tier % 4) + 1
+	var next_seed: int = randi_range(10000, 99999)
+	load_generated_map(next_seed, next_tier)
+
+
 func _on_restart_pressed() -> void:
-	get_tree().reload_current_scene()
+	load_generated_map(current_seed, current_tier)

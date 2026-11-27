@@ -40,8 +40,8 @@ func _pick_target_for(source: BaseNode) -> BaseNode:
 	var best_score: float = INF
 	var send_estimate: float = floorf(source.troops * SEND_RATIO)
 
-	# Prioritize non-enemy connected nodes with fewest troops (preferring Neutral or weaker Player)
-	for neighbor in source.connected_nodes:
+	# Prioritize non-enemy reachable nodes (edges + portals) with fewest troops
+	for neighbor in source.get_all_reachable_nodes():
 		if not is_instance_valid(neighbor) or neighbor.faction == BaseNode.Faction.ENEMY:
 			continue
 
