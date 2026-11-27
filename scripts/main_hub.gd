@@ -8,10 +8,12 @@ enum HubTab { CAMPAIGN, CREATURES, KINGDOM }
 @onready var kingdom_lv_label: Label = $TopBar/TopMargin/TopRow/RealmVBox/KingdomLvLabel
 @onready var gold_label: Label = $TopBar/TopMargin/TopRow/ResourcesVBox/GoldLabel
 @onready var essence_label: Label = $TopBar/TopMargin/TopRow/ResourcesVBox/EssenceLabel
+@onready var sfx_btn: Button = $TopBar/TopMargin/TopRow/SfxBtn
 
 @onready var campaign_tab: Control = $ContentArea/CampaignTab
 @onready var level_grid: GridContainer = $ContentArea/CampaignTab/CampaignVBox/GridCenter/LevelGrid
-@onready var sandbox_btn: Button = $ContentArea/CampaignTab/CampaignVBox/SandboxCenter/SandboxBtn
+@onready var sandbox_btn: Button = $ContentArea/CampaignTab/CampaignVBox/SandboxCenter/CampaignActionsRow/SandboxBtn
+@onready var test_boss_btn: Button = $ContentArea/CampaignTab/CampaignVBox/SandboxCenter/CampaignActionsRow/TestBossBtn
 
 @onready var creatures_tab: Control = $ContentArea/CreaturesTab
 @onready var creatures_list: VBoxContainer = $ContentArea/CreaturesTab/CreaturesScroll/CreaturesList
@@ -184,10 +186,27 @@ func _setup_styles() -> void:
 		sandbox_btn.add_theme_stylebox_override("pressed", _style_sandbox_hover)
 		sandbox_btn.add_theme_stylebox_override("focus", _style_sandbox)
 
+	if test_boss_btn:
+		var boss_st := _make_action_button_style(Color(0.55, 0.14, 0.28, 0.96), Color(1.0, 0.42, 0.58, 1.0))
+		boss_st.set_corner_radius_all(12)
+		var boss_hover := boss_st.duplicate() as StyleBoxFlat
+		boss_hover.bg_color = Color(0.68, 0.18, 0.34, 1.0)
+		test_boss_btn.add_theme_stylebox_override("normal", boss_st)
+		test_boss_btn.add_theme_stylebox_override("hover", boss_hover)
+		test_boss_btn.add_theme_stylebox_override("pressed", boss_hover)
+		test_boss_btn.add_theme_stylebox_override("focus", boss_st)
+
+	_refresh_sfx_button()
+
 
 func _connect_signals() -> void:
 	if sandbox_btn:
 		sandbox_btn.pressed.connect(_on_sandbox_pressed)
+	if test_boss_btn:
+		test_boss_btn.pressed.connect(_on_test_boss_pressed)
+	if sfx_btn:
+		sfx_btn.pressed.connect(_on_sfx_pressed)
+	AudioManager.sfx_toggled.connect(_on_sfx_toggled)
 	if tab_campaign_btn:
 		tab_campaign_btn.pressed.connect(_switch_tab.bind(HubTab.CAMPAIGN))
 	if tab_creatures_btn:
@@ -625,8 +644,38 @@ func _on_level_selected(level_id: int) -> void:
 
 
 func _on_sandbox_pressed() -> void:
+	AudioManager.play_select()
 	SaveManager.start_sandbox_mode()
 	get_tree().change_scene_to_file(BATTLE_SCENE_PATH)
+
+
+func _on_test_boss_pressed() -> void:
+	AudioManager.play_select()
+	SaveManager.start_boss_test()
+	get_tree().change_scene_to_file(BATTLE_SCENE_PATH)
+
+
+func _on_sfx_pressed() -> void:
+	AudioManager.toggle_sfx()
+
+
+func _on_sfx_toggled(_enabled: bool) -> void:
+	_refresh_sfx_button()
+
+
+func _refresh_sfx_button() -> void:
+	if sfx_btn == null:
+		return
+	var enabled: bool = AudioManager.is_sfx_enabled()
+	sfx_btn.text = "SFX: ON" if enabled else "SFX: OFF"
+	var st := _make_action_button_style(
+		Color(0.16, 0.36, 0.56, 0.95) if enabled else Color(0.16, 0.18, 0.24, 0.85),
+		Color(0.45, 0.80, 1.0, 0.95) if enabled else Color(0.32, 0.36, 0.44, 0.8)
+	)
+	sfx_btn.add_theme_stylebox_override("normal", st)
+	sfx_btn.add_theme_stylebox_override("hover", st)
+	sfx_btn.add_theme_stylebox_override("pressed", st)
+	sfx_btn.add_theme_color_override("font_color", Color.WHITE if enabled else Color(0.65, 0.70, 0.78))
 
 
 func _on_equip_creature(creature_id: String) -> void:

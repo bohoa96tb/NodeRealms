@@ -88,6 +88,14 @@ theme_override_font_sizes/font_size = 18
 text = "ESSENCE: 0"
 horizontal_alignment = 2
 
+[node name="SfxBtn" type="Button" parent="TopBar/TopMargin/TopRow"]
+custom_minimum_size = Vector2(92, 42)
+layout_mode = 2
+size_flags_vertical = 4
+focus_mode = 0
+theme_override_font_sizes/font_size = 14
+text = "SFX: ON"
+
 [node name="ContentArea" type="Control" parent="."]
 layout_mode = 1
 anchors_preset = 15
@@ -129,13 +137,26 @@ columns = 3
 [node name="SandboxCenter" type="CenterContainer" parent="ContentArea/CampaignTab/CampaignVBox"]
 layout_mode = 2
 
-[node name="SandboxBtn" type="Button" parent="ContentArea/CampaignTab/CampaignVBox/SandboxCenter"]
-custom_minimum_size = Vector2(320, 60)
+[node name="CampaignActionsRow" type="HBoxContainer" parent="ContentArea/CampaignTab/CampaignVBox/SandboxCenter"]
+layout_mode = 2
+theme_override_constants/separation = 16
+alignment = 1
+
+[node name="SandboxBtn" type="Button" parent="ContentArea/CampaignTab/CampaignVBox/SandboxCenter/CampaignActionsRow"]
+custom_minimum_size = Vector2(240, 60)
 layout_mode = 2
 focus_mode = 0
 theme_override_colors/font_color = Color(0.92, 0.96, 1, 1)
 theme_override_font_sizes/font_size = 20
 text = "Sandbox Mode"
+
+[node name="TestBossBtn" type="Button" parent="ContentArea/CampaignTab/CampaignVBox/SandboxCenter/CampaignActionsRow"]
+custom_minimum_size = Vector2(180, 60)
+layout_mode = 2
+focus_mode = 0
+theme_override_colors/font_color = Color(1, 0.92, 0.94, 1)
+theme_override_font_sizes/font_size = 20
+text = "Test Boss"
 
 [node name="CreaturesTab" type="MarginContainer" parent="ContentArea"]
 visible = false

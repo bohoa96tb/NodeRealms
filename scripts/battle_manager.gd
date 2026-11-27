@@ -15,23 +15,32 @@ const BONUS_NO_BASE_LOST_GOLD: int = 20
 const BONUS_FAST_CLEAR_GOLD: int = 20
 const FAST_CLEAR_LIMIT_SEC: float = 90.0
 
+const BOSS_SKILL_INTERVAL: float = 12.0
+const BOSS_CHARGE_DURATION: float = 2.0
+const BOSS_SUMMON_TROOPS: float = 8.0
+const BOSS_SURGE_RATIO: float = 0.40
+
 @export var base_node_scene: PackedScene = preload("res://scenes/BaseNode.tscn")
 @export var army_group_scene: PackedScene = preload("res://scenes/ArmyGroup.tscn")
 
+@onready var camera_2d: Camera2D = $Camera2D
 @onready var paths_layer: Node2D = $PathsLayer
 @onready var portals_layer: Node2D = $PortalsLayer
 @onready var nodes_layer: Node2D = $NodesLayer
+@onready var vfx_layer: Node2D = $VfxLayer
 @onready var army_groups_layer: Node2D = $ArmyGroupsLayer
 @onready var drag_line: Line2D = $DragLine
 @onready var ai_controller: AIController = $AIController
 @onready var creature_manager: CreatureManager = $CreatureManager
 
+@onready var sfx_btn: Button = $HUD/HUDRoot/TopBar/TopMargin/TopVBox/TopHeaderRow/SfxBtn
 @onready var stats_label: Label = $HUD/HUDRoot/TopBar/TopMargin/TopVBox/TopHeaderRow/StatsLabel
 @onready var seed_label: Label = $HUD/HUDRoot/TopBar/TopMargin/TopVBox/MapControlsRow/SeedLabel
 @onready var tier_label: Label = $HUD/HUDRoot/TopBar/TopMargin/TopVBox/MapControlsRow/TierLabel
 @onready var next_map_btn: Button = $HUD/HUDRoot/TopBar/TopMargin/TopVBox/MapControlsRow/NextMapBtn
 @onready var tier_btn: Button = $HUD/HUDRoot/TopBar/TopMargin/TopVBox/MapControlsRow/TierBtn
 @onready var back_btn: Button = $HUD/HUDRoot/TopBar/TopMargin/TopVBox/MapControlsRow/BackBtn
+@onready var boss_banner_label: Label = $HUD/HUDRoot/BossBannerLabel
 
 @onready var skill_btn: Button = $HUD/HUDRoot/SkillBar/SkillBtn
 @onready var switch_creature_btn: Button = $HUD/HUDRoot/SkillBar/SwitchCreatureBtn
@@ -55,10 +64,20 @@ var current_seed: int = 0
 var current_tier: int = 1
 
 var _is_campaign_mode: bool = false
+var _is_boss_test_mode: bool = false
 var _current_level_info: Dictionary = {}
 var _current_ai_difficulty: CampaignData.AIDifficulty = CampaignData.AIDifficulty.NORMAL
 var _match_elapsed_time: float = 0.0
 var _player_lost_base: bool = false
+
+var _boss_node: BaseNode = null
+var _boss_skill_timer: float = 0.0
+var _boss_charging: bool = false
+var _boss_charge_timer: float = 0.0
+
+var _shake_time: float = 0.0
+var _shake_duration: float = 0.15
+var _shake_intensity: float = 0.0
 
 var _map_generator := MapGenerator.new()
 var _portal_visuals: Array[Line2D] = []
@@ -87,14 +106,18 @@ func _ready() -> void:
 	_connect_hud_signals()
 	_connect_creature_signals()
 	_select_ratio_index(1) # Default 50%
+	_refresh_sfx_button()
 
 	if creature_manager:
 		creature_manager.sync_from_save()
 
 	if SaveManager.is_campaign:
 		load_campaign_level(SaveManager.current_level_id)
+	elif SaveManager.is_boss_test:
+		load_boss_test_level()
 	else:
 		_is_campaign_mode = false
+		_is_boss_test_mode = false
 		_current_level_info = {}
 		var initial_seed: int = randi_range(10000, 99999)
 		load_generated_map(initial_seed, 1, CampaignData.AIDifficulty.NORMAL)
@@ -110,6 +133,15 @@ func _process(delta: float) -> void:
 			if is_instance_valid(line):
 				line.modulate.a = pulse_alpha
 
+	if _shake_time > 0.0:
+		_shake_time = maxf(0.0, _shake_time - delta)
+		if camera_2d:
+			var decay: float = _shake_time / maxf(0.01, _shake_duration)
+			camera_2d.offset = Vector2(randf_range(-1.0, 1.0), randf_range(-1.0, 1.0)) * (_shake_intensity * decay)
+		if _shake_time <= 0.0 and camera_2d:
+			camera_2d.offset = Vector2.ZERO
+			_shake_intensity = 0.0
+
 	if creature_manager != null and creature_manager.is_skill_active():
 		_skill_blink_time += delta * 8.0
 		_update_active_skill_blink()
@@ -118,6 +150,7 @@ func _process(delta: float) -> void:
 		return
 
 	_match_elapsed_time += delta
+	_process_boss_skill(delta)
 
 	# Cancel drag cleanly if source node is lost or captured mid-drag
 	if _drag_source_node != null:
@@ -174,7 +207,20 @@ func _unhandled_input(event: InputEvent) -> void:
 func load_campaign_level(level_id: int) -> void:
 	SaveManager.start_campaign_level(level_id)
 	_is_campaign_mode = true
+	_is_boss_test_mode = false
 	_current_level_info = CampaignData.get_level(level_id)
+	load_generated_map(
+		int(_current_level_info["seed"]),
+		int(_current_level_info["tier"]),
+		_current_level_info["ai_difficulty"]
+	)
+
+
+func load_boss_test_level() -> void:
+	SaveManager.start_boss_test()
+	_is_campaign_mode = false
+	_is_boss_test_mode = true
+	_current_level_info = CampaignData.get_level(15)
 	load_generated_map(
 		int(_current_level_info["seed"]),
 		int(_current_level_info["tier"]),
@@ -194,6 +240,17 @@ func load_generated_map(
 	_player_lost_base = false
 	_current_ai_difficulty = ai_diff
 
+	_boss_node = null
+	_boss_skill_timer = 0.0
+	_boss_charging = false
+	_boss_charge_timer = 0.0
+	_shake_time = 0.0
+	_shake_intensity = 0.0
+	if camera_2d:
+		camera_2d.offset = Vector2.ZERO
+	if boss_banner_label:
+		boss_banner_label.visible = false
+
 	if creature_manager:
 		creature_manager.set_paused(false)
 		creature_manager.sync_from_save()
@@ -205,6 +262,7 @@ func load_generated_map(
 		result_overlay.visible = false
 
 	_clear_layer_children(army_groups_layer)
+	_clear_layer_children(vfx_layer)
 	_clear_layer_children(nodes_layer)
 	_clear_layer_children(paths_layer)
 	_clear_layer_children(portals_layer)
@@ -214,6 +272,11 @@ func load_generated_map(
 	var map_data: Dictionary = _map_generator.generate_map(seed_value, tier, PLAY_AREA)
 	current_seed = int(map_data["seed"])
 	current_tier = int(map_data["tier"])
+
+	var is_boss_stage: bool = (
+		(_is_campaign_mode and bool(_current_level_info.get("is_boss", false)))
+		or _is_boss_test_mode
+	)
 
 	var barracks_bonus: int = SaveManager.get_barracks_max_troops_bonus()
 	var node_by_id: Dictionary = {}
@@ -225,6 +288,12 @@ func load_generated_map(
 		node.faction = node_info["faction"] as BaseNode.Faction
 		node.troops = float(node_info["troops"])
 		node.creature_manager = creature_manager
+
+		if is_boss_stage and node.faction == BaseNode.Faction.ENEMY and _boss_node == null:
+			node.is_boss_node = true
+			node.troops = 35.0
+			_boss_node = node
+
 		nodes_layer.add_child(node)
 		node.faction_changed.connect(_on_node_faction_changed)
 		all_nodes.append(node)
@@ -270,7 +339,20 @@ func spawn_army(from_node: BaseNode, to_node: BaseNode, ratio: float) -> void:
 	army_groups_layer.add_child(army)
 	army.setup(from_node, to_node, sent_troops, is_portal, creature_manager)
 	army.arrived.connect(_on_army_arrived)
+
+	if from_node.faction == BaseNode.Faction.PLAYER:
+		if is_portal:
+			AudioManager.play_portal()
+		else:
+			AudioManager.play_send()
+
 	_update_stats_label()
+
+
+func shake_camera(intensity: float = 3.2, duration: float = 0.15) -> void:
+	_shake_intensity = maxf(_shake_intensity, intensity)
+	_shake_duration = duration
+	_shake_time = duration
 
 
 func is_game_ended() -> bool:
@@ -283,6 +365,113 @@ func get_nodes_by_faction(target_faction: BaseNode.Faction) -> Array[BaseNode]:
 		if is_instance_valid(node) and node.faction == target_faction:
 			result.append(node)
 	return result
+
+
+func _process_boss_skill(delta: float) -> void:
+	if _boss_node == null or not is_instance_valid(_boss_node) or not _boss_node.is_boss_node or _boss_node.faction != BaseNode.Faction.ENEMY:
+		if boss_banner_label and boss_banner_label.visible:
+			boss_banner_label.visible = false
+		_boss_charging = false
+		return
+
+	if _boss_charging:
+		_boss_charge_timer -= delta
+		if boss_banner_label:
+			var blink: float = 0.6 + 0.4 * sin(_portal_anim_time * 14.0)
+			boss_banner_label.modulate.a = blink
+		if _boss_charge_timer <= 0.0:
+			_execute_boss_skill()
+	else:
+		_boss_skill_timer += delta
+		if _boss_skill_timer >= BOSS_SKILL_INTERVAL:
+			_boss_skill_timer = 0.0
+			_start_boss_charge()
+
+
+func _start_boss_charge() -> void:
+	_boss_charging = true
+	_boss_charge_timer = BOSS_CHARGE_DURATION
+	if _boss_node and is_instance_valid(_boss_node):
+		_boss_node.is_boss_charging = true
+	if boss_banner_label:
+		boss_banner_label.text = "BOSS SKILL: OVERGROWTH SURGE!"
+		boss_banner_label.modulate.a = 1.0
+		boss_banner_label.visible = true
+
+
+func _execute_boss_skill() -> void:
+	_boss_charging = false
+	if boss_banner_label:
+		boss_banner_label.visible = false
+	if _boss_node == null or not is_instance_valid(_boss_node):
+		return
+
+	_boss_node.is_boss_charging = false
+	_boss_node.troops = minf(float(_boss_node.max_troops), _boss_node.troops + BOSS_SUMMON_TROOPS)
+	_boss_node.play_pulse(1.25)
+	_boss_node.trigger_skill_burst(BaseNode.COLOR_BOSS_CRIMSON)
+	_spawn_capture_particles(_boss_node.position, BaseNode.COLOR_BOSS_CRIMSON)
+	AudioManager.play_boss_skill()
+	shake_camera(4.0, 0.18)
+
+	var surge_target: BaseNode = _pick_boss_surge_target()
+	if surge_target != null:
+		spawn_army(_boss_node, surge_target, BOSS_SURGE_RATIO)
+
+
+func _pick_boss_surge_target() -> BaseNode:
+	if _boss_node == null or not is_instance_valid(_boss_node):
+		return null
+
+	var best_non_enemy: BaseNode = null
+	var best_dist: float = INF
+	for neighbor in _boss_node.get_all_reachable_nodes():
+		if not is_instance_valid(neighbor) or neighbor.faction == BaseNode.Faction.ENEMY:
+			continue
+		var d: float = _boss_node.position.distance_to(neighbor.position)
+		if d < best_dist:
+			best_dist = d
+			best_non_enemy = neighbor
+
+	if best_non_enemy != null:
+		return best_non_enemy
+
+	# Fallback if surrounded by ENEMY nodes: push toward ally closest to any PLAYER node
+	var player_nodes: Array[BaseNode] = get_nodes_by_faction(BaseNode.Faction.PLAYER)
+	var best_ally: BaseNode = null
+	var best_player_dist: float = INF
+	for neighbor in _boss_node.get_all_reachable_nodes():
+		if not is_instance_valid(neighbor):
+			continue
+		for pnode in player_nodes:
+			var d: float = neighbor.position.distance_to(pnode.position)
+			if d < best_player_dist:
+				best_player_dist = d
+				best_ally = neighbor
+	return best_ally
+
+
+func _spawn_capture_particles(world_pos: Vector2, burst_color: Color) -> void:
+	if vfx_layer == null:
+		return
+	var particles := CPUParticles2D.new()
+	particles.position = world_pos
+	particles.amount = 18
+	particles.lifetime = 0.45
+	particles.one_shot = true
+	particles.explosiveness = 1.0
+	particles.spread = 180.0
+	particles.gravity = Vector2.ZERO
+	particles.initial_velocity_min = 75.0
+	particles.initial_velocity_max = 175.0
+	particles.damping_min = 140.0
+	particles.damping_max = 220.0
+	particles.scale_amount_min = 4.0
+	particles.scale_amount_max = 8.0
+	particles.color = burst_color
+	vfx_layer.add_child(particles)
+	particles.finished.connect(particles.queue_free)
+	particles.emitting = true
 
 
 func _clear_layer_children(layer: Node) -> void:
@@ -397,6 +586,7 @@ func _begin_drag(world_pos: Vector2) -> bool:
 	_drag_source_node = hit_node
 	_drag_source_node.is_selected = true
 	_drag_source_node.play_pulse(1.1)
+	AudioManager.play_select()
 
 	for neighbor in _drag_source_node.get_all_reachable_nodes():
 		neighbor.is_valid_target = true
@@ -468,12 +658,13 @@ func _cancel_drag() -> void:
 
 func _find_node_at_position(world_pos: Vector2) -> BaseNode:
 	var best_node: BaseNode = null
-	var best_dist: float = BaseNode.RADIUS + TOUCH_SELECT_PADDING
+	var best_dist: float = INF
 	for node in all_nodes:
 		if not is_instance_valid(node):
 			continue
+		var max_hit_dist: float = node.get_visual_radius() + TOUCH_SELECT_PADDING
 		var dist: float = node.global_position.distance_to(world_pos)
-		if dist <= best_dist:
+		if dist <= max_hit_dist and dist < best_dist:
 			best_dist = dist
 			best_node = node
 	return best_node
@@ -483,9 +674,16 @@ func _screen_to_world(screen_pos: Vector2) -> Vector2:
 	return get_viewport().get_canvas_transform().affine_inverse() * screen_pos
 
 
-func _on_node_faction_changed(_node: BaseNode, old_faction: BaseNode.Faction, new_faction: BaseNode.Faction) -> void:
+func _on_node_faction_changed(node: BaseNode, old_faction: BaseNode.Faction, new_faction: BaseNode.Faction) -> void:
 	if old_faction == BaseNode.Faction.PLAYER and new_faction != BaseNode.Faction.PLAYER:
 		_player_lost_base = true
+		AudioManager.play_lost()
+	elif new_faction == BaseNode.Faction.PLAYER:
+		AudioManager.play_capture()
+
+	if is_instance_valid(node):
+		_spawn_capture_particles(node.position, node.get_faction_color(new_faction))
+		shake_camera(3.2, 0.15)
 
 
 func _on_army_arrived(_army: ArmyGroup) -> void:
@@ -536,11 +734,14 @@ func _show_end_screen(victory: bool) -> void:
 	_game_ended = true
 	_cancel_drag()
 
+	if boss_banner_label:
+		boss_banner_label.visible = false
 	if creature_manager:
 		creature_manager.set_paused(true)
 	_refresh_creature_hud()
 
 	if victory:
+		AudioManager.play_victory()
 		result_title.text = "VICTORY"
 		result_title.add_theme_color_override("font_color", Color(0.45, 0.88, 1.0, 1.0))
 
@@ -581,6 +782,12 @@ func _show_end_screen(victory: bool) -> void:
 			reward_details_label.visible = true
 			next_level_btn.visible = level_id < CampaignData.TOTAL_LEVELS
 			restart_button.text = "Replay"
+		elif _is_boss_test_mode:
+			result_subtitle.text = "Verdant Overlord Defeated! (%ds)" % int(_match_elapsed_time)
+			reward_details_label.text = "Boss Practice Cleared!\n(Unlock LV 15 in Campaign to claim +300 Gold & +60 Essence)"
+			reward_details_label.visible = true
+			next_level_btn.visible = false
+			restart_button.text = "Replay"
 		else:
 			SaveManager.record_sandbox_victory()
 			result_subtitle.text = "All enemy realms conquered! (%ds)" % int(_match_elapsed_time)
@@ -589,6 +796,7 @@ func _show_end_screen(victory: bool) -> void:
 			next_level_btn.visible = false
 			restart_button.text = "Replay"
 	else:
+		AudioManager.play_defeat()
 		SaveManager.record_defeat()
 		result_title.text = "DEFEAT"
 		result_title.add_theme_color_override("font_color", Color(1.0, 0.42, 0.42, 1.0))
@@ -612,7 +820,18 @@ func _update_map_hud_labels() -> void:
 		if seed_label:
 			seed_label.text = "VERDANT - LV %d (%s)" % [int(_current_level_info["level_id"]), str(_current_level_info["name"])]
 		if tier_label:
-			tier_label.text = CampaignData.get_difficulty_label(_current_ai_difficulty)
+			tier_label.text = "BOSS" if bool(_current_level_info.get("is_boss", false)) else CampaignData.get_difficulty_label(_current_ai_difficulty)
+	elif _is_boss_test_mode:
+		if next_map_btn:
+			next_map_btn.visible = false
+		if tier_btn:
+			tier_btn.visible = false
+		if back_btn:
+			back_btn.visible = true
+		if seed_label:
+			seed_label.text = "BOSS TEST - VERDANT OVERLORD"
+		if tier_label:
+			tier_label.text = "BOSS"
 	else:
 		if next_map_btn:
 			next_map_btn.visible = true
@@ -733,6 +952,9 @@ func _connect_hud_signals() -> void:
 		tier_btn.pressed.connect(_on_tier_button_pressed)
 	if back_btn:
 		back_btn.pressed.connect(_on_back_to_campaign_pressed)
+	if sfx_btn:
+		sfx_btn.pressed.connect(_on_sfx_pressed)
+	AudioManager.sfx_toggled.connect(_on_sfx_toggled)
 	if skill_btn:
 		skill_btn.pressed.connect(_on_skill_button_pressed)
 	if switch_creature_btn:
@@ -746,6 +968,22 @@ func _connect_creature_signals() -> void:
 	creature_manager.skill_ended.connect(_on_skill_ended)
 	creature_manager.cooldown_updated.connect(_on_cooldown_updated)
 	creature_manager.creature_changed.connect(_on_creature_changed)
+
+
+func _refresh_sfx_button() -> void:
+	if sfx_btn == null:
+		return
+	var enabled: bool = AudioManager.is_sfx_enabled()
+	sfx_btn.text = "SFX: ON" if enabled else "SFX: OFF"
+	var st := StyleBoxFlat.new()
+	st.bg_color = Color(0.16, 0.36, 0.56, 0.95) if enabled else Color(0.16, 0.18, 0.24, 0.85)
+	st.border_color = Color(0.45, 0.80, 1.0, 0.95) if enabled else Color(0.32, 0.36, 0.44, 0.8)
+	st.set_border_width_all(2)
+	st.set_corner_radius_all(8)
+	sfx_btn.add_theme_stylebox_override("normal", st)
+	sfx_btn.add_theme_stylebox_override("hover", st)
+	sfx_btn.add_theme_stylebox_override("pressed", st)
+	sfx_btn.add_theme_color_override("font_color", Color.WHITE if enabled else Color(0.65, 0.70, 0.78))
 
 
 func _refresh_creature_hud() -> void:
@@ -821,6 +1059,7 @@ func _on_switch_creature_pressed() -> void:
 
 func _on_skill_activated(_creature: Dictionary) -> void:
 	_skill_blink_time = 0.0
+	AudioManager.play_skill()
 	_update_stats_label()
 	_refresh_creature_hud()
 
@@ -864,6 +1103,14 @@ func _select_ratio_index(index: int) -> void:
 		btn.add_theme_color_override("font_color", Color.WHITE if is_active else Color(0.75, 0.82, 0.9, 1.0))
 
 
+func _on_sfx_pressed() -> void:
+	AudioManager.toggle_sfx()
+
+
+func _on_sfx_toggled(_enabled: bool) -> void:
+	_refresh_sfx_button()
+
+
 func _on_next_map_pressed() -> void:
 	var next_seed: int = randi_range(10000, 99999)
 	load_generated_map(next_seed, current_tier, _current_ai_difficulty)
@@ -884,6 +1131,8 @@ func _on_next_level_pressed() -> void:
 func _on_restart_pressed() -> void:
 	if _is_campaign_mode:
 		load_campaign_level(int(_current_level_info["level_id"]))
+	elif _is_boss_test_mode:
+		load_boss_test_level()
 	else:
 		load_generated_map(current_seed, current_tier, _current_ai_difficulty)
 

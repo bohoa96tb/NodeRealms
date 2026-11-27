@@ -27,10 +27,10 @@ static func get_all_levels() -> Array[Dictionary]:
 		{"level_id": 11, "name": "Mistwood Span", "seed": 34177, "tier": 3, "ai_difficulty": AIDifficulty.NORMAL, "base_gold": 250, "base_essence": 38},
 		{"level_id": 12, "name": "Sunken Shrine", "seed": 36824, "tier": 3, "ai_difficulty": AIDifficulty.NORMAL, "base_gold": 275, "base_essence": 42},
 
-		# Tier 4: Levels 13-15 (HARD, Multi-Portal Finale)
-		{"level_id": 13, "name": "Ancient Archway", "seed": 40915, "tier": 4, "ai_difficulty": AIDifficulty.HARD, "base_gold": 300, "base_essence": 46},
-		{"level_id": 14, "name": "Emerald Citadel", "seed": 42763, "tier": 4, "ai_difficulty": AIDifficulty.HARD, "base_gold": 330, "base_essence": 50},
-		{"level_id": 15, "name": "Heart of Verdant", "seed": 45991, "tier": 4, "ai_difficulty": AIDifficulty.HARD, "base_gold": 380, "base_essence": 60},
+		# Tier 4: Levels 13-15 (HARD, Multi-Portal Finale + Boss)
+		{"level_id": 13, "name": "Ancient Archway", "seed": 40915, "tier": 4, "ai_difficulty": AIDifficulty.HARD, "base_gold": 300, "base_essence": 46, "is_boss": false},
+		{"level_id": 14, "name": "Emerald Citadel", "seed": 42763, "tier": 4, "ai_difficulty": AIDifficulty.HARD, "base_gold": 330, "base_essence": 50, "is_boss": false},
+		{"level_id": 15, "name": "Verdant Overlord", "seed": 45991, "tier": 4, "ai_difficulty": AIDifficulty.HARD, "base_gold": 300, "base_essence": 60, "is_boss": true},
 	]
 
 

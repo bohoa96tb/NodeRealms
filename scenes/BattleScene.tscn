@@ -98,6 +98,8 @@ color = Color(0.067, 0.086, 0.125, 1)
 
 [node name="NodesLayer" type="Node2D" parent="."]
 
+[node name="VfxLayer" type="Node2D" parent="."]
+
 [node name="ArmyGroupsLayer" type="Node2D" parent="."]
 
 [node name="DragLine" type="Line2D" parent="."]
@@ -159,6 +161,13 @@ theme_override_colors/font_color = Color(0.92, 0.95, 1, 1)
 theme_override_font_sizes/font_size = 24
 text = "NODE REALMS"
 
+[node name="SfxBtn" type="Button" parent="HUD/HUDRoot/TopBar/TopMargin/TopVBox/TopHeaderRow"]
+custom_minimum_size = Vector2(84, 32)
+layout_mode = 2
+focus_mode = 0
+theme_override_font_sizes/font_size = 13
+text = "SFX: ON"
+
 [node name="StatsLabel" type="Label" parent="HUD/HUDRoot/TopBar/TopMargin/TopVBox/TopHeaderRow"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.75, 0.85, 0.96, 1)
@@ -213,6 +222,23 @@ focus_mode = 0
 theme_override_colors/font_color = Color(0.92, 0.95, 1, 1)
 theme_override_font_sizes/font_size = 14
 text = "Back"
+
+[node name="BossBannerLabel" type="Label" parent="HUD/HUDRoot"]
+visible = false
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_top = 126.0
+offset_bottom = 158.0
+grow_horizontal = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(1, 0.36, 0.45, 1)
+theme_override_colors/font_outline_color = Color(0.08, 0.02, 0.05, 0.96)
+theme_override_constants/outline_size = 4
+theme_override_font_sizes/font_size = 18
+text = "BOSS SKILL: OVERGROWTH SURGE!"
+horizontal_alignment = 1
+vertical_alignment = 1
 
 [node name="SkillBar" type="HBoxContainer" parent="HUD/HUDRoot"]
 layout_mode = 1

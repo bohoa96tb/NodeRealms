@@ -8,6 +8,7 @@ var data: Dictionary = {}
 
 # Runtime navigation state passed between MainHubScene and BattleScene
 var is_campaign: bool = false
+var is_boss_test: bool = false
 var current_level_id: int = 1
 var last_hub_tab: int = 0
 
@@ -18,12 +19,20 @@ func _ready() -> void:
 
 func start_campaign_level(level_id: int) -> void:
 	is_campaign = true
+	is_boss_test = false
 	current_level_id = clampi(level_id, 1, MAX_CAMPAIGN_LEVEL)
 
 
 func start_sandbox_mode() -> void:
 	is_campaign = false
+	is_boss_test = false
 	current_level_id = 1
+
+
+func start_boss_test() -> void:
+	is_campaign = false
+	is_boss_test = true
+	current_level_id = 15
 
 
 func load_game() -> void:
@@ -72,6 +81,18 @@ func get_gold() -> int:
 
 func get_essence() -> int:
 	return int(data["player"]["essence"])
+
+
+func is_sfx_enabled() -> bool:
+	var settings: Dictionary = data.get("settings", {})
+	return bool(settings.get("sfx_enabled", true))
+
+
+func set_sfx_enabled(enabled: bool) -> void:
+	if not (data.get("settings") is Dictionary):
+		data["settings"] = {}
+	data["settings"]["sfx_enabled"] = enabled
+	save_game()
 
 
 func spend_gold(amount: int) -> bool:
@@ -297,6 +318,10 @@ func _sanitize_loaded_data(loaded: Dictionary, defaults: Dictionary) -> Dictiona
 		result["statistics"]["best_streak"] = maxi(0, int(s.get("best_streak", 0)))
 		result["statistics"]["current_streak"] = maxi(0, int(s.get("current_streak", 0)))
 
+	if loaded.get("settings") is Dictionary:
+		var st: Dictionary = loaded["settings"]
+		result["settings"]["sfx_enabled"] = bool(st.get("sfx_enabled", true))
+
 	return result
 
 
@@ -338,5 +363,8 @@ func _get_default_data() -> Dictionary:
 			"losses": 0,
 			"best_streak": 0,
 			"current_streak": 0,
+		},
+		"settings": {
+			"sfx_enabled": true,
 		},
 	}

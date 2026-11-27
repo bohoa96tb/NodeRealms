@@ -6,7 +6,11 @@ signal faction_changed(node: BaseNode, old_faction: Faction, new_faction: Factio
 enum Faction { NEUTRAL, PLAYER, ENEMY }
 
 const RADIUS: float = 42.0
+const BOSS_RADIUS: float = 56.0
 const BASE_MAX_TROOPS: int = 50
+const BOSS_MAX_TROOPS: int = 80
+const BOSS_PRODUCTION_RATE: float = 0.85
+const BOSS_POWER_MULTIPLIER: float = 1.15
 
 const COLOR_PLAYER_FILL := Color(0.18, 0.525, 0.871, 1.0)
 const COLOR_PLAYER_RIM := Color(0.45, 0.75, 1.0, 1.0)
@@ -20,6 +24,8 @@ const COLOR_VALID_TARGET := Color(0.33, 0.94, 0.77, 0.85)
 const COLOR_HOVERED_TARGET := Color(1.0, 1.0, 1.0, 0.95)
 const COLOR_PORTAL_ORCHID := Color.MEDIUM_ORCHID
 const COLOR_PORTAL_CYAN := Color.CYAN
+const COLOR_BOSS_CRIMSON := Color(0.92, 0.16, 0.38, 1.0)
+const COLOR_BOSS_PURPLE := Color(0.66, 0.18, 0.86, 1.0)
 
 @export var node_id: int = 0
 @export var faction: Faction = Faction.NEUTRAL:
@@ -39,16 +45,28 @@ const COLOR_PORTAL_CYAN := Color.CYAN
 @export var max_troops: int = 50
 @export var production_rate: float = 0.5
 @export var power_multiplier: float = 1.0
+@export var is_boss_node: bool = false:
+	set(value):
+		if is_boss_node != value:
+			is_boss_node = value
+			_apply_boss_state()
 @export var connected_nodes: Array[BaseNode] = []
 @export var portal_nodes: Array[BaseNode] = []
 
+@onready var collision_shape: CollisionShape2D = $CollisionShape2D
 @onready var troop_label: Label = $TroopLabel
+@onready var boss_label: Label = $BossLabel
 
 var creature_manager: CreatureManager = null
 var barracks_bonus: int = 0:
 	set(value):
 		barracks_bonus = maxi(0, value)
 		_update_effective_max_troops()
+		queue_redraw()
+
+var is_boss_charging: bool = false:
+	set(value):
+		is_boss_charging = value
 		queue_redraw()
 
 var is_selected: bool = false:
@@ -71,16 +89,24 @@ var is_hovered_target: bool = false:
 
 var _is_mouse_over: bool = false
 var _portal_angle: float = 0.0
+var _boss_angle: float = 0.0
+var _boss_charge_pulse: float = 0.0
 var _buff_pulse: float = 0.0
 var _burst_progress: float = 1.0
 var _burst_color: Color = Color.WHITE
+var _impact_flash: float = 0.0
 var _pulse_tween: Tween
 var _burst_tween: Tween
+var _flash_tween: Tween
+var _label_tween: Tween
 
 
 func _ready() -> void:
 	mouse_entered.connect(_on_mouse_entered)
 	mouse_exited.connect(_on_mouse_exited)
+	if troop_label:
+		troop_label.pivot_offset = troop_label.size * 0.5
+	_apply_boss_state()
 	_refresh_visuals()
 
 
@@ -98,11 +124,17 @@ func _process(delta: float) -> void:
 		_portal_angle = fmod(_portal_angle + delta * 1.8, TAU)
 		needs_redraw = true
 
+	if is_boss_node:
+		_boss_angle = fmod(_boss_angle + delta * 0.9, TAU)
+		if is_boss_charging:
+			_boss_charge_pulse = fmod(_boss_charge_pulse + delta * 12.0, TAU)
+		needs_redraw = true
+
 	if _is_player_buff_active():
 		_buff_pulse = fmod(_buff_pulse + delta * 5.0, TAU)
 		needs_redraw = true
 
-	if _burst_progress < 1.0:
+	if _burst_progress < 1.0 or _impact_flash > 0.01:
 		needs_redraw = true
 
 	if needs_redraw:
@@ -110,15 +142,33 @@ func _process(delta: float) -> void:
 
 
 func _draw() -> void:
+	var rad: float = get_visual_radius()
 	var fill_color: Color = _get_fill_color()
 	var rim_color: Color = _get_rim_color()
 
 	# Soft ambient shadow behind node
-	draw_circle(Vector2(0.0, 4.0), RADIUS + 3.0, Color(0.0, 0.0, 0.0, 0.35))
+	draw_circle(Vector2(0.0, 4.0), rad + 3.0, Color(0.0, 0.0, 0.0, 0.38))
+
+	# Boss outer spiked energy crown & charging telegraph
+	if is_boss_node:
+		draw_circle(Vector2.ZERO, rad + 14.0, Color(0.55, 0.1, 0.35, 0.20))
+		var spike_count: int = 8
+		for i in range(spike_count):
+			var ang: float = _boss_angle + float(i) * TAU / float(spike_count)
+			var perp: Vector2 = Vector2.from_angle(ang + PI * 0.5)
+			var base_center: Vector2 = Vector2.from_angle(ang) * (rad + 2.0)
+			var tip: Vector2 = Vector2.from_angle(ang) * (rad + 16.0)
+			var col: Color = COLOR_BOSS_CRIMSON if (i % 2 == 0) else COLOR_BOSS_PURPLE
+			draw_colored_polygon(PackedVector2Array([tip, base_center + perp * 6.5, base_center - perp * 6.5]), col)
+		draw_arc(Vector2.ZERO, rad + 6.0, 0.0, TAU, 48, Color(1.0, 0.35, 0.55, 0.8), 2.5, true)
+
+		if is_boss_charging:
+			var warn_alpha: float = 0.5 + 0.5 * sin(_boss_charge_pulse)
+			draw_arc(Vector2.ZERO, rad + 22.0, 0.0, TAU, 56, Color(1.0, 0.25, 0.25, warn_alpha), 4.5, true)
 
 	# Rotating portal halo if this node hosts a Portal
 	if has_portal():
-		var portal_radius: float = RADIUS + 11.0
+		var portal_radius: float = rad + 11.0
 		draw_circle(Vector2.ZERO, portal_radius + 3.0, Color(0.45, 0.2, 0.65, 0.16))
 		draw_arc(Vector2.ZERO, portal_radius, _portal_angle, _portal_angle + PI * 0.68, 24, COLOR_PORTAL_ORCHID, 3.0, true)
 		draw_arc(Vector2.ZERO, portal_radius, _portal_angle + PI, _portal_angle + PI * 1.68, 24, COLOR_PORTAL_CYAN, 3.0, true)
@@ -131,29 +181,29 @@ func _draw() -> void:
 		var glow_col: Color = creature["color"]
 		var border_col: Color = creature["border_color"]
 		var pulse_alpha: float = 0.55 + 0.35 * sin(_buff_pulse)
-		draw_circle(Vector2.ZERO, RADIUS + 8.0, Color(glow_col.r, glow_col.g, glow_col.b, 0.18 * pulse_alpha))
-		draw_arc(Vector2.ZERO, RADIUS + 4.0, 0.0, TAU, 48, Color(border_col.r, border_col.g, border_col.b, pulse_alpha), 3.0, true)
+		draw_circle(Vector2.ZERO, rad + 8.0, Color(glow_col.r, glow_col.g, glow_col.b, 0.18 * pulse_alpha))
+		draw_arc(Vector2.ZERO, rad + 4.0, 0.0, TAU, 48, Color(border_col.r, border_col.g, border_col.b, pulse_alpha), 3.0, true)
 
 	# Selection / target highlight rings
 	if is_selected:
-		draw_circle(Vector2.ZERO, RADIUS + 10.0, Color(1.0, 0.92, 0.55, 0.22))
-		draw_arc(Vector2.ZERO, RADIUS + 6.5, 0.0, TAU, 48, COLOR_SELECTED_GLOW, 3.5, true)
+		draw_circle(Vector2.ZERO, rad + 10.0, Color(1.0, 0.92, 0.55, 0.22))
+		draw_arc(Vector2.ZERO, rad + 6.5, 0.0, TAU, 48, COLOR_SELECTED_GLOW, 3.5, true)
 	elif is_hovered_target:
-		draw_circle(Vector2.ZERO, RADIUS + 10.0, Color(0.33, 0.94, 0.77, 0.24))
-		draw_arc(Vector2.ZERO, RADIUS + 6.5, 0.0, TAU, 48, COLOR_HOVERED_TARGET, 3.5, true)
+		draw_circle(Vector2.ZERO, rad + 10.0, Color(0.33, 0.94, 0.77, 0.24))
+		draw_arc(Vector2.ZERO, rad + 6.5, 0.0, TAU, 48, COLOR_HOVERED_TARGET, 3.5, true)
 	elif is_valid_target:
-		draw_arc(Vector2.ZERO, RADIUS + 5.5, 0.0, TAU, 48, COLOR_VALID_TARGET, 2.5, true)
+		draw_arc(Vector2.ZERO, rad + 5.5, 0.0, TAU, 48, COLOR_VALID_TARGET, 2.5, true)
 	elif _is_mouse_over and faction == Faction.PLAYER:
-		draw_arc(Vector2.ZERO, RADIUS + 5.0, 0.0, TAU, 48, Color(1.0, 1.0, 1.0, 0.4), 2.0, true)
+		draw_arc(Vector2.ZERO, rad + 5.0, 0.0, TAU, 48, Color(1.0, 1.0, 1.0, 0.4), 2.0, true)
 
 	# Main node body
-	draw_circle(Vector2.ZERO, RADIUS, fill_color)
+	draw_circle(Vector2.ZERO, rad, fill_color)
 
 	# Subtle inner core shading
-	draw_circle(Vector2(0.0, -6.0), RADIUS * 0.72, Color(1.0, 1.0, 1.0, 0.08))
+	draw_circle(Vector2(0.0, -6.0), rad * 0.72, Color(1.0, 1.0, 1.0, 0.08))
 
 	# Outer rim
-	draw_arc(Vector2.ZERO, RADIUS, 0.0, TAU, 48, rim_color, 3.0, true)
+	draw_arc(Vector2.ZERO, rad, 0.0, TAU, 48, rim_color, 3.5 if is_boss_node else 3.0, true)
 
 	# Capacity progress arc
 	if max_troops > 0:
@@ -161,13 +211,31 @@ func _draw() -> void:
 		if fill_ratio > 0.01:
 			var start_angle: float = -PI * 0.5
 			var end_angle: float = start_angle + TAU * fill_ratio
-			draw_arc(Vector2.ZERO, RADIUS - 5.0, start_angle, end_angle, 40, Color(1.0, 1.0, 1.0, 0.38), 2.5, true)
+			draw_arc(Vector2.ZERO, rad - 5.0, start_angle, end_angle, 40, Color(1.0, 1.0, 1.0, 0.38), 2.5, true)
 
-	# Skill activation expanding shockwave ripple
+	# Impact white flash when hit by hostile army
+	if _impact_flash > 0.01:
+		draw_circle(Vector2.ZERO, rad, Color(1.0, 1.0, 1.0, _impact_flash * 0.55))
+
+	# Skill / Capture expanding shockwave ripple
 	if _burst_progress < 1.0:
-		var ripple_r: float = RADIUS + _burst_progress * 34.0
-		var ripple_alpha: float = (1.0 - _burst_progress) * 0.85
+		var ripple_r: float = rad + _burst_progress * 38.0
+		var ripple_alpha: float = (1.0 - _burst_progress) * 0.9
 		draw_arc(Vector2.ZERO, ripple_r, 0.0, TAU, 48, Color(_burst_color.r, _burst_color.g, _burst_color.b, ripple_alpha), 4.0, true)
+
+
+func get_visual_radius() -> float:
+	return BOSS_RADIUS if is_boss_node else RADIUS
+
+
+func get_faction_color(target_faction: Faction) -> Color:
+	match target_faction:
+		Faction.PLAYER:
+			return COLOR_PLAYER_RIM
+		Faction.ENEMY:
+			return COLOR_ENEMY_RIM
+		_:
+			return COLOR_NEUTRAL_RIM
 
 
 func extract_troops(ratio: float) -> int:
@@ -203,6 +271,24 @@ func trigger_skill_burst(burst_color: Color) -> void:
 	queue_redraw()
 
 
+func trigger_impact_flash() -> void:
+	if not is_inside_tree():
+		return
+	_impact_flash = 1.0
+	if _flash_tween and _flash_tween.is_valid():
+		_flash_tween.kill()
+	_flash_tween = create_tween()
+	_flash_tween.tween_property(self, "_impact_flash", 0.0, 0.16).set_ease(Tween.EASE_OUT)
+
+	if troop_label:
+		if _label_tween and _label_tween.is_valid():
+			_label_tween.kill()
+		troop_label.scale = Vector2(1.36, 1.36)
+		_label_tween = create_tween()
+		_label_tween.tween_property(troop_label, "scale", Vector2.ONE, 0.16).set_ease(Tween.EASE_OUT)
+	queue_redraw()
+
+
 func receive_army(incoming_faction: Faction, incoming_troops: int, attack_mult: float) -> void:
 	if incoming_troops <= 0:
 		return
@@ -211,6 +297,8 @@ func receive_army(incoming_faction: Faction, incoming_troops: int, attack_mult: 
 		troops = minf(float(max_troops), troops + float(incoming_troops))
 		play_pulse(1.12)
 		return
+
+	trigger_impact_flash()
 
 	var defense_mult: float = power_multiplier
 	if faction == Faction.PLAYER and creature_manager != null and is_instance_valid(creature_manager):
@@ -222,9 +310,13 @@ func receive_army(incoming_faction: Faction, incoming_troops: int, attack_mult: 
 	if attack_power > defense_power:
 		var winner_mult: float = maxf(0.01, attack_mult)
 		var remaining: float = absf(attack_power - defense_power) / winner_mult
+		if is_boss_node and incoming_faction != Faction.ENEMY:
+			is_boss_node = false
+			is_boss_charging = false
 		faction = incoming_faction
 		troops = minf(float(max_troops), remaining)
-		play_pulse(1.2)
+		play_pulse(1.22)
+		trigger_skill_burst(get_faction_color(faction))
 	else:
 		var winner_mult: float = maxf(0.01, defense_mult)
 		var remaining: float = absf(attack_power - defense_power) / winner_mult
@@ -266,6 +358,27 @@ func play_pulse(peak_scale: float = 1.15) -> void:
 	_pulse_tween.tween_property(self, "scale", Vector2.ONE, 0.14).set_ease(Tween.EASE_IN_OUT)
 
 
+func _apply_boss_state() -> void:
+	if is_boss_node:
+		production_rate = BOSS_PRODUCTION_RATE
+		power_multiplier = BOSS_POWER_MULTIPLIER
+	else:
+		production_rate = 0.5
+		power_multiplier = 1.0
+
+	_update_effective_max_troops()
+
+	if collision_shape and collision_shape.shape is CircleShape2D:
+		var new_circle := CircleShape2D.new()
+		new_circle.radius = (BOSS_RADIUS + 2.0) if is_boss_node else (RADIUS + 2.0)
+		collision_shape.shape = new_circle
+
+	if boss_label:
+		boss_label.visible = is_boss_node
+
+	queue_redraw()
+
+
 func _is_player_buff_active() -> bool:
 	return faction == Faction.PLAYER and creature_manager != null and is_instance_valid(creature_manager) and creature_manager.is_skill_active()
 
@@ -277,7 +390,10 @@ func _refresh_visuals() -> void:
 
 
 func _update_effective_max_troops() -> void:
-	max_troops = BASE_MAX_TROOPS + (barracks_bonus if faction == Faction.PLAYER else 0)
+	if is_boss_node:
+		max_troops = BOSS_MAX_TROOPS
+	else:
+		max_troops = BASE_MAX_TROOPS + (barracks_bonus if faction == Faction.PLAYER else 0)
 
 
 func _update_troop_label() -> void:

@@ -71,7 +71,8 @@ func _process(delta: float) -> void:
 	var distance: float = to_target.length()
 	var step: float = effective_speed * delta
 
-	if distance <= step or distance <= BaseNode.RADIUS * 0.75:
+	var target_radius: float = target_node.get_visual_radius()
+	if distance <= step or distance <= target_radius * 0.75:
 		_resolve_arrival()
 		return
 
