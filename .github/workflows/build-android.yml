@@ -1,0 +1,126 @@
+name: Build Android APK & AAB
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build-android:
+    name: Export Godot 4.3 Android
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Java 17 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK Platform 34 & Build-Tools
+        run: |
+          yes | sdkmanager --licenses > /dev/null 2>&1 || true
+          sdkmanager "platforms;android-34" "build-tools;34.0.0" "platform-tools"
+
+      - name: Download Godot 4.3 & Export Templates
+        env:
+          GODOT_VERSION: "4.3-stable"
+          TEMPLATE_DIR: "4.3.stable"
+        run: |
+          wget -q "https://github.com/godotengine/godot-builds/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_linux.x86_64.zip" -O godot.zip
+          unzip -q godot.zip
+          sudo mv "Godot_v${GODOT_VERSION}_linux.x86_64" /usr/local/bin/godot
+          sudo chmod +x /usr/local/bin/godot
+          rm -f godot.zip
+
+          mkdir -p "$HOME/.local/share/godot/export_templates/${TEMPLATE_DIR}"
+          wget -q "https://github.com/godotengine/godot-builds/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_export_templates.tpz" -O templates.tpz
+          unzip -q templates.tpz -d temp_templates
+          if [ -d "temp_templates/templates" ]; then
+            mv temp_templates/templates/* "$HOME/.local/share/godot/export_templates/${TEMPLATE_DIR}/"
+          else
+            mv temp_templates/* "$HOME/.local/share/godot/export_templates/${TEMPLATE_DIR}/"
+          fi
+          rm -rf templates.tpz temp_templates
+          godot --version
+
+      - name: Generate Temporary Debug Keystore & Configure Editor Settings
+        run: |
+          mkdir -p "$HOME/.android"
+          rm -f "$HOME/.android/debug.keystore"
+          keytool -genkeypair -v \
+            -keystore "$HOME/.android/debug.keystore" \
+            -storepass android \
+            -alias androiddebugkey \
+            -keypass android \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -dname "CN=Android Debug,O=Android,C=US"
+
+          SDK_PATH="${ANDROID_SDK_ROOT:-$ANDROID_HOME}"
+          mkdir -p "$HOME/.config/godot"
+          cat <<EOF > "$HOME/.config/godot/editor_settings-4.3.tres"
+          [gd_resource type="EditorSettings" format=3]
+
+          [resource]
+          export/android/android_sdk_path = "${SDK_PATH}"
+          export/android/java_sdk_path = "${JAVA_HOME}"
+          export/android/debug_keystore = "${HOME}/.android/debug.keystore"
+          export/android/debug_keystore_user = "androiddebugkey"
+          export/android/debug_keystore_pass = "android"
+          EOF
+
+      - name: Import Godot Project & Class Cache
+        run: |
+          timeout 90 godot --headless --import || true
+
+      - name: Export Debug APK
+        run: |
+          mkdir -p build
+          godot --headless --verbose --export-debug "Android" build/NodeRealms-debug.apk
+          ls -lh build/NodeRealms-debug.apk
+
+      - name: Export Release AAB (if Release Keystore Secrets exist)
+        env:
+          RELEASE_KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+          RELEASE_KEYSTORE_USER: ${{ secrets.RELEASE_KEYSTORE_USER }}
+          RELEASE_KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
+        run: |
+          if [ -n "$RELEASE_KEYSTORE_BASE64" ] && [ -n "$RELEASE_KEYSTORE_USER" ] && [ -n "$RELEASE_KEYSTORE_PASSWORD" ]; then
+            echo "Release secrets detected. Building signed Release AAB..."
+            echo "$RELEASE_KEYSTORE_BASE64" | base64 --decode > /tmp/release.keystore
+
+            mkdir -p android/build
+            unzip -q -o "$HOME/.local/share/godot/export_templates/4.3.stable/android_source.zip" -d android/build
+            touch android/build/.gdignore
+
+            cp export_presets.cfg /tmp/export_presets.cfg.bak
+            sed -i 's@^gradle_build/use_gradle_build=.*@gradle_build/use_gradle_build=true@g' export_presets.cfg
+            sed -i 's@^gradle_build/export_format=.*@gradle_build/export_format=1@g' export_presets.cfg
+            sed -i 's@^keystore/release=.*@keystore/release="/tmp/release.keystore"@g' export_presets.cfg
+            sed -i "s@^keystore/release_user=.*@keystore/release_user=\"${RELEASE_KEYSTORE_USER}\"@g" export_presets.cfg
+            sed -i "s@^keystore/release_password=.*@keystore/release_password=\"${RELEASE_KEYSTORE_PASSWORD}\"@g" export_presets.cfg
+
+            godot --headless --verbose --export-release "Android" build/NodeRealms-release.aab
+
+            mv /tmp/export_presets.cfg.bak export_presets.cfg
+            rm -f /tmp/release.keystore
+            ls -lh build/NodeRealms-release.aab
+          else
+            echo "Release keystore secrets not set. Skipping Release AAB build."
+          fi
+
+      - name: Upload Android Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: NodeRealms-Android
+          path: build/*
+          if-no-files-found: error
