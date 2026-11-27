@@ -2,7 +2,9 @@ class_name BattleManager
 extends Node2D
 
 const CAMPAIGN_SCENE_PATH: String = "res://scenes/MainHubScene.tscn"
-const PLAY_AREA := Rect2(90.0, 185.0, 540.0, 835.0)
+const PLAY_AREA := Rect2(90.0, 240.0, 540.0, 780.0)
+const BASE_TOP_BAR_HEIGHT: float = 154.0
+const BASE_TOP_MARGIN: float = 24.0
 const TOUCH_SELECT_PADDING: float = 16.0
 const RATIO_OPTIONS := [0.25, 0.5, 0.75, 1.0]
 const EMULATED_DEVICE_ID: int = -1
@@ -33,6 +35,8 @@ const BOSS_SURGE_RATIO: float = 0.40
 @onready var ai_controller: AIController = $AIController
 @onready var creature_manager: CreatureManager = $CreatureManager
 
+@onready var top_bar: PanelContainer = $HUD/HUDRoot/TopBar
+@onready var top_margin: MarginContainer = $HUD/HUDRoot/TopBar/TopMargin
 @onready var sfx_btn: Button = $HUD/HUDRoot/TopBar/TopMargin/TopVBox/TopHeaderRow/SfxBtn
 @onready var stats_label: Label = $HUD/HUDRoot/TopBar/TopMargin/TopVBox/TopHeaderRow/StatsLabel
 @onready var seed_label: Label = $HUD/HUDRoot/TopBar/TopMargin/TopVBox/MapControlsRow/SeedLabel
@@ -40,6 +44,11 @@ const BOSS_SURGE_RATIO: float = 0.40
 @onready var next_map_btn: Button = $HUD/HUDRoot/TopBar/TopMargin/TopVBox/MapControlsRow/NextMapBtn
 @onready var tier_btn: Button = $HUD/HUDRoot/TopBar/TopMargin/TopVBox/MapControlsRow/TierBtn
 @onready var back_btn: Button = $HUD/HUDRoot/TopBar/TopMargin/TopVBox/MapControlsRow/BackBtn
+@onready var timer_label: Label = $HUD/HUDRoot/TopBar/TopMargin/TopVBox/StatusInfoRow/TimerLabel
+@onready var no_loss_label: Label = $HUD/HUDRoot/TopBar/TopMargin/TopVBox/StatusInfoRow/NoLossLabel
+@onready var boss_gauge_box: HBoxContainer = $HUD/HUDRoot/TopBar/TopMargin/TopVBox/StatusInfoRow/BossGaugeBox
+@onready var boss_gauge_label: Label = $HUD/HUDRoot/TopBar/TopMargin/TopVBox/StatusInfoRow/BossGaugeBox/BossGaugeLabel
+@onready var boss_gauge_bar: ProgressBar = $HUD/HUDRoot/TopBar/TopMargin/TopVBox/StatusInfoRow/BossGaugeBox/BossGaugeBar
 @onready var boss_banner_label: Label = $HUD/HUDRoot/BossBannerLabel
 
 @onready var skill_btn: Button = $HUD/HUDRoot/SkillBar/SkillBtn
@@ -97,11 +106,13 @@ var _style_skill_ready: StyleBoxFlat
 var _style_skill_active: StyleBoxFlat
 var _style_skill_cooldown: StyleBoxFlat
 var _style_switch_btn: StyleBoxFlat
+var _style_boss_bar_fill: StyleBoxFlat
 
 
 func _ready() -> void:
 	randomize()
 	ratio_buttons.assign([btn_25, btn_50, btn_75, btn_100])
+	_apply_safe_area_top_padding()
 	_setup_hud_styles()
 	_connect_hud_signals()
 	_connect_creature_signals()
@@ -146,11 +157,12 @@ func _process(delta: float) -> void:
 		_skill_blink_time += delta * 8.0
 		_update_active_skill_blink()
 
-	if _game_ended:
+	if _game_ended or get_tree().paused:
 		return
 
 	_match_elapsed_time += delta
 	_process_boss_skill(delta)
+	_update_battle_readability_hud()
 
 	# Cancel drag cleanly if source node is lost or captured mid-drag
 	if _drag_source_node != null:
@@ -319,6 +331,7 @@ func load_generated_map(
 
 	_update_map_hud_labels()
 	_update_stats_label()
+	_update_battle_readability_hud()
 	_refresh_creature_hud()
 
 
@@ -678,6 +691,7 @@ func _on_node_faction_changed(node: BaseNode, old_faction: BaseNode.Faction, new
 	if old_faction == BaseNode.Faction.PLAYER and new_faction != BaseNode.Faction.PLAYER:
 		_player_lost_base = true
 		AudioManager.play_lost()
+		_update_battle_readability_hud()
 	elif new_faction == BaseNode.Faction.PLAYER:
 		AudioManager.play_capture()
 
@@ -738,7 +752,11 @@ func _show_end_screen(victory: bool) -> void:
 		boss_banner_label.visible = false
 	if creature_manager:
 		creature_manager.set_paused(true)
+	_update_battle_readability_hud()
 	_refresh_creature_hud()
+
+	var time_secs: int = floori(_match_elapsed_time)
+	var time_str: String = "%02d:%02d" % [time_secs / 60, time_secs % 60]
 
 	if victory:
 		AudioManager.play_victory()
@@ -765,12 +783,12 @@ func _show_end_screen(victory: bool) -> void:
 
 			SaveManager.record_campaign_victory(level_id, total_gold, total_essence)
 
-			result_subtitle.text = "LV %d: %s Cleared! (%ds)" % [level_id, level_name, int(_match_elapsed_time)]
+			result_subtitle.text = "LV %d: %s Cleared! (%s)" % [level_id, level_name, time_str]
 			reward_details_label.text = (
 				"Base Clear: +%d Gold\n"
 				+ "%s Capture All Nodes: +%d Gold\n"
 				+ "%s No Base Lost: +%d Gold\n"
-				+ "%s Fast Clear (<90s): +%d Gold\n"
+				+ "%s Fast Clear (<01:30): +%d Gold\n"
 				+ "Total Earned: +%d Gold  |  +%d Essence (+%d Habitat)"
 			) % [
 				base_gold,
@@ -783,14 +801,14 @@ func _show_end_screen(victory: bool) -> void:
 			next_level_btn.visible = level_id < CampaignData.TOTAL_LEVELS
 			restart_button.text = "Replay"
 		elif _is_boss_test_mode:
-			result_subtitle.text = "Verdant Overlord Defeated! (%ds)" % int(_match_elapsed_time)
+			result_subtitle.text = "Verdant Overlord Defeated! (%s)" % time_str
 			reward_details_label.text = "Boss Practice Cleared!\n(Unlock LV 15 in Campaign to claim +300 Gold & +60 Essence)"
 			reward_details_label.visible = true
 			next_level_btn.visible = false
 			restart_button.text = "Replay"
 		else:
 			SaveManager.record_sandbox_victory()
-			result_subtitle.text = "All enemy realms conquered! (%ds)" % int(_match_elapsed_time)
+			result_subtitle.text = "All enemy realms conquered! (%s)" % time_str
 			reward_details_label.text = "Sandbox Seed #%d (Tier %d) Cleared!" % [current_seed, current_tier]
 			reward_details_label.visible = true
 			next_level_btn.visible = false
@@ -801,7 +819,7 @@ func _show_end_screen(victory: bool) -> void:
 		result_title.text = "DEFEAT"
 		result_title.add_theme_color_override("font_color", Color(1.0, 0.42, 0.42, 1.0))
 		result_subtitle.text = "Your realms have fallen!"
-		reward_details_label.text = "Match Time: %ds\nTip: Use your Creature Skill to push the front!" % int(_match_elapsed_time)
+		reward_details_label.text = "Match Time: %s\nTip: Use your Creature Skill to push the front!" % time_str
 		reward_details_label.visible = true
 		next_level_btn.visible = false
 		restart_button.text = "Retry"
@@ -872,6 +890,77 @@ func _update_stats_label() -> void:
 	stats_label.text = "BLUE %d  |  RED %d" % [player_troops, enemy_troops]
 
 
+func _apply_safe_area_top_padding() -> void:
+	var extra_top: float = 0.0
+	var screen_size: Vector2i = DisplayServer.screen_get_size()
+	if screen_size.y > 0:
+		var safe_area: Rect2i = DisplayServer.get_display_safe_area()
+		if safe_area.position.y > 0:
+			var canvas_top_inset: float = (float(safe_area.position.y) / float(screen_size.y)) * 1280.0
+			extra_top = clampf(canvas_top_inset - BASE_TOP_MARGIN, 0.0, 36.0)
+
+	var final_top_margin: int = roundi(BASE_TOP_MARGIN + extra_top)
+	var final_bar_height: float = BASE_TOP_BAR_HEIGHT + extra_top
+
+	if top_margin:
+		top_margin.add_theme_constant_override("margin_top", final_top_margin)
+	if top_bar:
+		top_bar.offset_bottom = final_bar_height
+	if boss_banner_label:
+		boss_banner_label.offset_top = final_bar_height + 4.0
+		boss_banner_label.offset_bottom = final_bar_height + 36.0
+
+
+func _update_battle_readability_hud() -> void:
+	if timer_label:
+		var total_secs: int = floori(_match_elapsed_time)
+		var mins: int = total_secs / 60
+		var secs: int = total_secs % 60
+		if _match_elapsed_time < FAST_CLEAR_LIMIT_SEC:
+			timer_label.text = "%02d:%02d (<01:30)" % [mins, secs]
+			timer_label.add_theme_color_override("font_color", Color(0.38, 0.94, 0.72, 1.0))
+		else:
+			timer_label.text = "%02d:%02d" % [mins, secs]
+			timer_label.add_theme_color_override("font_color", Color(0.68, 0.74, 0.82, 1.0))
+
+	if no_loss_label:
+		if not _player_lost_base:
+			no_loss_label.text = "No Loss: OK"
+			no_loss_label.add_theme_color_override("font_color", Color(0.42, 0.92, 0.58, 1.0))
+		else:
+			no_loss_label.text = "No Loss: LOST"
+			no_loss_label.add_theme_color_override("font_color", Color(0.74, 0.48, 0.52, 1.0))
+
+	if boss_gauge_box:
+		var boss_alive: bool = (
+			_boss_node != null
+			and is_instance_valid(_boss_node)
+			and _boss_node.is_boss_node
+			and _boss_node.faction == BaseNode.Faction.ENEMY
+		)
+		boss_gauge_box.visible = boss_alive
+		if boss_alive:
+			if _boss_charging:
+				if boss_gauge_bar:
+					boss_gauge_bar.max_value = BOSS_CHARGE_DURATION
+					boss_gauge_bar.value = clampf(BOSS_CHARGE_DURATION - _boss_charge_timer, 0.0, BOSS_CHARGE_DURATION)
+				if boss_gauge_label:
+					boss_gauge_label.text = "SURGE! %ds" % maxi(1, ceili(_boss_charge_timer))
+					boss_gauge_label.add_theme_color_override("font_color", Color(1.0, 0.35, 0.38, 1.0))
+				if _style_boss_bar_fill:
+					_style_boss_bar_fill.bg_color = Color(1.0, 0.25, 0.32, 1.0)
+			else:
+				if boss_gauge_bar:
+					boss_gauge_bar.max_value = BOSS_SKILL_INTERVAL
+					boss_gauge_bar.value = clampf(_boss_skill_timer, 0.0, BOSS_SKILL_INTERVAL)
+				if boss_gauge_label:
+					var rem_sec: int = maxi(1, ceili(BOSS_SKILL_INTERVAL - _boss_skill_timer))
+					boss_gauge_label.text = "Surge: %ds" % rem_sec
+					boss_gauge_label.add_theme_color_override("font_color", Color(1.0, 0.56, 0.70, 1.0))
+				if _style_boss_bar_fill:
+					_style_boss_bar_fill.bg_color = Color(0.84, 0.22, 0.52, 1.0)
+
+
 func _setup_hud_styles() -> void:
 	_style_btn_normal = StyleBoxFlat.new()
 	_style_btn_normal.bg_color = Color(0.14, 0.18, 0.25, 0.95)
@@ -933,6 +1022,20 @@ func _setup_hud_styles() -> void:
 	_style_switch_btn.set_corner_radius_all(14)
 	_style_switch_btn.content_margin_left = 12.0
 	_style_switch_btn.content_margin_right = 12.0
+
+	var style_boss_bar_bg := StyleBoxFlat.new()
+	style_boss_bar_bg.bg_color = Color(0.14, 0.10, 0.18, 0.95)
+	style_boss_bar_bg.border_color = Color(0.45, 0.26, 0.42, 0.9)
+	style_boss_bar_bg.set_border_width_all(1)
+	style_boss_bar_bg.set_corner_radius_all(6)
+
+	_style_boss_bar_fill = StyleBoxFlat.new()
+	_style_boss_bar_fill.bg_color = Color(0.84, 0.22, 0.52, 1.0)
+	_style_boss_bar_fill.set_corner_radius_all(5)
+
+	if boss_gauge_bar:
+		boss_gauge_bar.add_theme_stylebox_override("background", style_boss_bar_bg)
+		boss_gauge_bar.add_theme_stylebox_override("fill", _style_boss_bar_fill)
 
 
 func _connect_hud_signals() -> void:

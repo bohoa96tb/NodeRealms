@@ -4,7 +4,7 @@
 **Target Platform:** Android (`720x1280` portrait, `canvas_items` / `expand`, `import_etc2_astc=true`, one-handed touch)  
 **Main Scene:** `res://scenes/MainHubScene.tscn`  
 **Autoloads:** `SaveManager` (`res://scripts/save_manager.gd`), `AudioManager` (`res://scripts/audio_manager.gd`)  
-**Current Milestone:** P3 Part 1 Complete + Android APK/AAB GitHub Actions CI (`18c24fa`)
+**Current Milestone:** P3 Part 2 (Task 1: In-Battle Readability HUD & Android Top Safe-Area Padding) + Android CI (`adc403f`+)
 
 ---
 
@@ -72,15 +72,16 @@
 ## 3. Remaining Roadmap
 
 ### P3 Part 2 - Mobile UX Polish, Combat Readability & Player Retention
-1. **In-Battle Readability & Bonus Tracking**:
-   - Live match timer (`MM:SS`) in Battle HUD so players can track the `<90s` Fast Clear bonus, plus live indicator when `No Base Lost` is still intact.
-   - Boss charge/HP clarity in Battle HUD (e.g., compact Boss Surge cooldown/warning bar on Level 15 / `Test Boss`).
-2. **Android Safe Area & Tall-Screen Layout**:
-   - Respect `DisplayServer.get_display_safe_area()` top/bottom insets in `MainHubScene` and `BattleScene` HUD bars for notched/punch-hole Android devices.
-3. **Onboarding & Player Statistics**:
+1. **In-Battle Readability & Bonus Tracking (Completed):**
+   - Live match timer (`MM:SS (<01:30)`) in `BattleScene` `TopBar` tracking `<90s` Fast Clear bonus, plus live `No Loss: OK / LOST` indicator.
+   - Compact **Boss Surge** countdown + `ProgressBar` (`Surge: Xs` -> `SURGE! Xs`) visible during Level 15 and `Test Boss`, freezing cleanly on Victory/Defeat/Pause.
+   - Android top safe-area inset padding (`DisplayServer.get_display_safe_area()`) in `BattleScene` `TopBar` with `PLAY_AREA` shifted to `y=240..1020` to clear notches and banners.
+2. **Android Safe Area & Tall-Screen Layout (Remaining):**
+   - Extend `DisplayServer.get_display_safe_area()` top/bottom insets to `MainHubScene` and `BattleScene` bottom navigation/HUD bars.
+3. **Onboarding & Player Statistics:**
    - Lightweight, skippable first-match interactive tutorial hints (1-hand drag, Portal warp, Creature Skill).
    - Player Profile / Statistics dialog accessible from Main Hub (`Wins`, `Losses`, `Current Streak`, `Best Streak`, plus optional legacy `CampaignScene` cleanup decision).
-4. **Post-Verdant Replayability (Optional P3)**:
+4. **Post-Verdant Replayability (Optional P3):**
    - Daily Seed Challenge or Endless Skirmish mode using `MapGenerator` with daily rewards.
 
 ### P4 - Google Play Store Readiness & Release

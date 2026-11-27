@@ -130,7 +130,7 @@ mouse_filter = 2
 layout_mode = 1
 anchors_preset = 10
 anchor_right = 1.0
-offset_bottom = 122.0
+offset_bottom = 154.0
 grow_horizontal = 2
 mouse_filter = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_topbar")
@@ -139,14 +139,14 @@ theme_override_styles/panel = SubResource("StyleBoxFlat_topbar")
 layout_mode = 2
 mouse_filter = 2
 theme_override_constants/margin_left = 20
-theme_override_constants/margin_top = 10
+theme_override_constants/margin_top = 24
 theme_override_constants/margin_right = 20
-theme_override_constants/margin_bottom = 10
+theme_override_constants/margin_bottom = 8
 
 [node name="TopVBox" type="VBoxContainer" parent="HUD/HUDRoot/TopBar/TopMargin"]
 layout_mode = 2
 mouse_filter = 2
-theme_override_constants/separation = 8
+theme_override_constants/separation = 6
 alignment = 1
 
 [node name="TopHeaderRow" type="HBoxContainer" parent="HUD/HUDRoot/TopBar/TopMargin/TopVBox"]
@@ -223,13 +223,56 @@ theme_override_colors/font_color = Color(0.92, 0.95, 1, 1)
 theme_override_font_sizes/font_size = 14
 text = "Back"
 
+[node name="StatusInfoRow" type="HBoxContainer" parent="HUD/HUDRoot/TopBar/TopMargin/TopVBox"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 12
+
+[node name="TimerLabel" type="Label" parent="HUD/HUDRoot/TopBar/TopMargin/TopVBox/StatusInfoRow"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.38, 0.94, 0.72, 1)
+theme_override_font_sizes/font_size = 15
+text = "00:00 (<01:30)"
+vertical_alignment = 1
+
+[node name="NoLossLabel" type="Label" parent="HUD/HUDRoot/TopBar/TopMargin/TopVBox/StatusInfoRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.42, 0.92, 0.58, 1)
+theme_override_font_sizes/font_size = 15
+text = "No Loss: OK"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="BossGaugeBox" type="HBoxContainer" parent="HUD/HUDRoot/TopBar/TopMargin/TopVBox/StatusInfoRow"]
+visible = false
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 8
+alignment = 2
+
+[node name="BossGaugeLabel" type="Label" parent="HUD/HUDRoot/TopBar/TopMargin/TopVBox/StatusInfoRow/BossGaugeBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.52, 0.62, 1)
+theme_override_font_sizes/font_size = 15
+text = "Surge: 12s"
+vertical_alignment = 1
+
+[node name="BossGaugeBar" type="ProgressBar" parent="HUD/HUDRoot/TopBar/TopMargin/TopVBox/StatusInfoRow/BossGaugeBox"]
+custom_minimum_size = Vector2(96, 16)
+layout_mode = 2
+size_flags_vertical = 4
+mouse_filter = 2
+max_value = 12.0
+show_percentage = false
+
 [node name="BossBannerLabel" type="Label" parent="HUD/HUDRoot"]
 visible = false
 layout_mode = 1
 anchors_preset = 10
 anchor_right = 1.0
-offset_top = 126.0
-offset_bottom = 158.0
+offset_top = 158.0
+offset_bottom = 190.0
 grow_horizontal = 2
 mouse_filter = 2
 theme_override_colors/font_color = Color(1, 0.36, 0.45, 1)
