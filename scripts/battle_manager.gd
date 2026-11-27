@@ -30,6 +30,8 @@ enum TutorialStep { NONE, DRAG_DISPATCH, CREATURE_SKILL, PORTAL_WARP }
 
 @export var base_node_scene: PackedScene = preload("res://scenes/BaseNode.tscn")
 @export var army_group_scene: PackedScene = preload("res://scenes/ArmyGroup.tscn")
+@export var path_tile_texture: Texture2D
+@export var leyline_shader: Shader
 
 @onready var camera_2d: Camera2D = $Camera2D
 @onready var paths_layer: Node2D = $PathsLayer
@@ -37,7 +39,9 @@ enum TutorialStep { NONE, DRAG_DISPATCH, CREATURE_SKILL, PORTAL_WARP }
 @onready var nodes_layer: Node2D = $NodesLayer
 @onready var vfx_layer: Node2D = $VfxLayer
 @onready var army_groups_layer: Node2D = $ArmyGroupsLayer
+@onready var drag_line_glow: Line2D = $DragLineGlow
 @onready var drag_line: Line2D = $DragLine
+@onready var drag_arrow: Polygon2D = $DragArrow
 @onready var ai_controller: AIController = $AIController
 @onready var creature_manager: CreatureManager = $CreatureManager
 
@@ -106,6 +110,8 @@ var _map_generator := MapGenerator.new()
 var _portal_visuals: Array[Line2D] = []
 var _portal_anim_time: float = 0.0
 var _skill_blink_time: float = 0.0
+var _leyline_material: ShaderMaterial = null
+var _portal_beam_material: ShaderMaterial = null
 
 var _drag_source_node: BaseNode = null
 var _hovered_target_node: BaseNode = null
@@ -131,6 +137,7 @@ var _style_boss_bar_fill: StyleBoxFlat
 func _ready() -> void:
 	randomize()
 	ratio_buttons.assign([btn_25, btn_50, btn_75, btn_100])
+	_init_shared_materials()
 	_apply_safe_area_padding()
 	var vp: Viewport = get_viewport()
 	if vp != null and not vp.size_changed.is_connected(_apply_safe_area_padding):
@@ -558,23 +565,41 @@ func _build_path_lines() -> void:
 				continue
 			drawn_pairs[key] = true
 
-			var outer_line := Line2D.new()
-			outer_line.width = 10.0
-			outer_line.default_color = Color(0.11, 0.145, 0.21, 0.95)
-			outer_line.begin_cap_mode = Line2D.LINE_CAP_ROUND
-			outer_line.end_cap_mode = Line2D.LINE_CAP_ROUND
-			outer_line.add_point(node.position)
-			outer_line.add_point(neighbor.position)
-			paths_layer.add_child(outer_line)
+			var shadow_offset := Vector2(0.0, 5.0)
+			var shadow_line := Line2D.new()
+			shadow_line.width = 18.0
+			shadow_line.default_color = Color(0.02, 0.045, 0.075, 0.56)
+			shadow_line.begin_cap_mode = Line2D.LINE_CAP_ROUND
+			shadow_line.end_cap_mode = Line2D.LINE_CAP_ROUND
+			shadow_line.add_point(node.position + shadow_offset)
+			shadow_line.add_point(neighbor.position + shadow_offset)
+			paths_layer.add_child(shadow_line)
 
-			var inner_line := Line2D.new()
-			inner_line.width = 3.5
-			inner_line.default_color = Color(0.32, 0.42, 0.56, 0.8)
-			inner_line.begin_cap_mode = Line2D.LINE_CAP_ROUND
-			inner_line.end_cap_mode = Line2D.LINE_CAP_ROUND
-			inner_line.add_point(node.position)
-			inner_line.add_point(neighbor.position)
-			paths_layer.add_child(inner_line)
+			var stone_line := Line2D.new()
+			stone_line.width = 16.0
+			stone_line.default_color = Color(0.92, 0.96, 1.0, 0.96)
+			stone_line.begin_cap_mode = Line2D.LINE_CAP_ROUND
+			stone_line.end_cap_mode = Line2D.LINE_CAP_ROUND
+			if path_tile_texture != null:
+				stone_line.texture = path_tile_texture
+				stone_line.texture_mode = Line2D.LINE_TEXTURE_TILE
+				stone_line.texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
+			else:
+				stone_line.default_color = Color(0.24, 0.34, 0.44, 0.92)
+			stone_line.add_point(node.position)
+			stone_line.add_point(neighbor.position)
+			paths_layer.add_child(stone_line)
+
+			var energy_line := Line2D.new()
+			energy_line.width = 3.2
+			energy_line.default_color = Color(0.28, 0.90, 0.95, 0.45)
+			energy_line.begin_cap_mode = Line2D.LINE_CAP_ROUND
+			energy_line.end_cap_mode = Line2D.LINE_CAP_ROUND
+			if _leyline_material != null:
+				energy_line.material = _leyline_material
+			energy_line.add_point(node.position)
+			energy_line.add_point(neighbor.position)
+			paths_layer.add_child(energy_line)
 
 
 func _build_portal_lines() -> void:
@@ -591,14 +616,26 @@ func _build_portal_lines() -> void:
 			drawn_pairs[key] = true
 
 			var glow_line := Line2D.new()
-			glow_line.width = 12.0
-			glow_line.default_color = Color(0.42, 0.22, 0.68, 0.22)
+			glow_line.width = 18.0
+			glow_line.default_color = Color(0.36, 0.16, 0.68, 0.28)
 			glow_line.begin_cap_mode = Line2D.LINE_CAP_ROUND
 			glow_line.end_cap_mode = Line2D.LINE_CAP_ROUND
 			glow_line.add_point(node.position)
 			glow_line.add_point(partner.position)
 			portals_layer.add_child(glow_line)
 			_portal_visuals.append(glow_line)
+
+			var beam_line := Line2D.new()
+			beam_line.width = 6.0
+			beam_line.default_color = Color(0.22, 0.94, 1.0, 0.52)
+			beam_line.begin_cap_mode = Line2D.LINE_CAP_ROUND
+			beam_line.end_cap_mode = Line2D.LINE_CAP_ROUND
+			if _portal_beam_material != null:
+				beam_line.material = _portal_beam_material
+			beam_line.add_point(node.position)
+			beam_line.add_point(partner.position)
+			portals_layer.add_child(beam_line)
+			_portal_visuals.append(beam_line)
 
 			var delta_vec: Vector2 = partner.position - node.position
 			var total_dist: float = delta_vec.length()
@@ -658,18 +695,44 @@ func _update_drag(world_pos: Vector2) -> void:
 		if _hovered_target_node != null:
 			_hovered_target_node.is_hovered_target = true
 
+	var start_pos: Vector2 = _drag_source_node.global_position
 	var end_pos: Vector2 = _hovered_target_node.global_position if _hovered_target_node != null else world_pos
-	drag_line.clear_points()
-	drag_line.add_point(_drag_source_node.global_position)
-	drag_line.add_point(end_pos)
-
+	var line_color := Color(0.45, 0.84, 1.0, 0.90)
+	var glow_color := Color(0.28, 0.72, 1.0, 0.28)
 	if _hovered_target_node != null and _drag_source_node.is_portal_connected_to(_hovered_target_node):
-		drag_line.default_color = Color.CYAN
+		line_color = Color.CYAN
+		glow_color = Color(0.0, 0.92, 1.0, 0.36)
 	elif _hovered_target_node != null:
-		drag_line.default_color = Color(0.33, 0.94, 0.77, 0.95)
-	else:
-		drag_line.default_color = Color(0.45, 0.78, 1.0, 0.85)
+		line_color = Color(0.38, 0.96, 0.78, 0.96)
+		glow_color = Color(0.25, 0.92, 0.72, 0.34)
+
+	if drag_line_glow:
+		drag_line_glow.clear_points()
+		drag_line_glow.add_point(start_pos)
+		drag_line_glow.add_point(end_pos)
+		drag_line_glow.default_color = glow_color
+		drag_line_glow.visible = true
+
+	drag_line.clear_points()
+	drag_line.add_point(start_pos)
+	drag_line.add_point(end_pos)
+	drag_line.default_color = line_color
 	drag_line.visible = true
+
+	if drag_arrow:
+		var seg: Vector2 = end_pos - start_pos
+		var seg_len: float = seg.length()
+		if seg_len > 14.0:
+			var dir: Vector2 = seg / seg_len
+			var arrow_pos: Vector2 = end_pos
+			if _hovered_target_node != null:
+				arrow_pos = end_pos - dir * (_hovered_target_node.get_visual_radius() + 6.0)
+			drag_arrow.global_position = arrow_pos
+			drag_arrow.rotation = seg.angle()
+			drag_arrow.color = line_color
+			drag_arrow.visible = true
+		else:
+			drag_arrow.visible = false
 
 
 func _end_drag(world_pos: Vector2) -> void:
@@ -698,9 +761,14 @@ func _cancel_drag() -> void:
 	_is_mouse_dragging = false
 	_active_touch_index = -1
 
+	if drag_line_glow:
+		drag_line_glow.visible = false
+		drag_line_glow.clear_points()
 	if drag_line:
 		drag_line.visible = false
 		drag_line.clear_points()
+	if drag_arrow:
+		drag_arrow.visible = false
 
 
 func _find_node_at_position(world_pos: Vector2) -> BaseNode:
@@ -1023,6 +1091,24 @@ func _update_battle_readability_hud() -> void:
 					_style_boss_bar_fill.bg_color = Color(0.84, 0.22, 0.52, 1.0)
 		else:
 			boss_gauge_box.modulate.a = 1.0
+
+
+func _init_shared_materials() -> void:
+	if leyline_shader == null:
+		return
+	_leyline_material = ShaderMaterial.new()
+	_leyline_material.shader = leyline_shader
+	_leyline_material.set_shader_parameter("speed", 0.55)
+	_leyline_material.set_shader_parameter("pulse_frequency", 3.5)
+	_leyline_material.set_shader_parameter("base_alpha", 0.55)
+	_leyline_material.set_shader_parameter("glow_boost", 0.55)
+
+	_portal_beam_material = ShaderMaterial.new()
+	_portal_beam_material.shader = leyline_shader
+	_portal_beam_material.set_shader_parameter("speed", 1.35)
+	_portal_beam_material.set_shader_parameter("pulse_frequency", 5.0)
+	_portal_beam_material.set_shader_parameter("base_alpha", 0.65)
+	_portal_beam_material.set_shader_parameter("glow_boost", 0.90)
 
 
 func _setup_hud_styles() -> void:

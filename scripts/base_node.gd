@@ -12,20 +12,28 @@ const BOSS_MAX_TROOPS: int = 80
 const BOSS_PRODUCTION_RATE: float = 0.85
 const BOSS_POWER_MULTIPLIER: float = 1.15
 
+const ISLAND_SCALE_NORMAL := Vector2(0.64, 0.64)
+const ISLAND_SCALE_BOSS := Vector2(0.72, 0.72)
+
 const COLOR_PLAYER_FILL := Color(0.18, 0.525, 0.871, 1.0)
-const COLOR_PLAYER_RIM := Color(0.45, 0.75, 1.0, 1.0)
+const COLOR_PLAYER_RIM := Color(0.45, 0.78, 1.0, 1.0)
 const COLOR_ENEMY_FILL := Color(0.86, 0.25, 0.27, 1.0)
 const COLOR_ENEMY_RIM := Color(1.0, 0.52, 0.52, 1.0)
 const COLOR_NEUTRAL_FILL := Color(0.36, 0.41, 0.45, 1.0)
-const COLOR_NEUTRAL_RIM := Color(0.62, 0.68, 0.72, 1.0)
+const COLOR_NEUTRAL_RIM := Color(0.62, 0.72, 0.76, 1.0)
 
-const COLOR_SELECTED_GLOW := Color(1.0, 0.92, 0.55, 0.95)
-const COLOR_VALID_TARGET := Color(0.33, 0.94, 0.77, 0.85)
-const COLOR_HOVERED_TARGET := Color(1.0, 1.0, 1.0, 0.95)
+const COLOR_SELECTED_GLOW := Color(1.0, 0.90, 0.42, 0.98)
+const COLOR_VALID_TARGET := Color(0.33, 0.95, 0.78, 0.88)
+const COLOR_HOVERED_TARGET := Color(1.0, 1.0, 1.0, 0.98)
 const COLOR_PORTAL_ORCHID := Color.MEDIUM_ORCHID
 const COLOR_PORTAL_CYAN := Color.CYAN
 const COLOR_BOSS_CRIMSON := Color(0.92, 0.16, 0.38, 1.0)
 const COLOR_BOSS_PURPLE := Color(0.66, 0.18, 0.86, 1.0)
+
+@export var tex_neutral: Texture2D
+@export var tex_player: Texture2D
+@export var tex_enemy: Texture2D
+@export var tex_boss: Texture2D
 
 @export var node_id: int = 0
 @export var faction: Faction = Faction.NEUTRAL:
@@ -54,6 +62,9 @@ const COLOR_BOSS_PURPLE := Color(0.66, 0.18, 0.86, 1.0)
 @export var portal_nodes: Array[BaseNode] = []
 
 @onready var collision_shape: CollisionShape2D = $CollisionShape2D
+@onready var portal_ring_sprite: Sprite2D = $PortalRingSprite
+@onready var reticle_sprite: Sprite2D = $ReticleSprite
+@onready var island_sprite: Sprite2D = $IslandSprite
 @onready var troop_label: Label = $TroopLabel
 @onready var boss_label: Label = $BossLabel
 
@@ -73,22 +84,27 @@ var is_selected: bool = false:
 	set(value):
 		if is_selected != value:
 			is_selected = value
+			_refresh_selection_visuals()
 			queue_redraw()
 
 var is_valid_target: bool = false:
 	set(value):
 		if is_valid_target != value:
 			is_valid_target = value
+			_refresh_selection_visuals()
 			queue_redraw()
 
 var is_hovered_target: bool = false:
 	set(value):
 		if is_hovered_target != value:
 			is_hovered_target = value
+			_refresh_selection_visuals()
 			queue_redraw()
 
 var _is_mouse_over: bool = false
 var _portal_angle: float = 0.0
+var _reticle_angle: float = 0.0
+var _target_pulse: float = 0.0
 var _boss_angle: float = 0.0
 var _boss_charge_pulse: float = 0.0
 var _buff_pulse: float = 0.0
@@ -108,6 +124,11 @@ func _ready() -> void:
 		troop_label.pivot_offset = troop_label.size * 0.5
 	_apply_boss_state()
 	_refresh_visuals()
+	_refresh_selection_visuals()
+
+
+func _exit_tree() -> void:
+	_kill_all_tweens()
 
 
 func _process(delta: float) -> void:
@@ -120,8 +141,25 @@ func _process(delta: float) -> void:
 				prod_mult = creature_manager.get_production_mult()
 			troops = minf(float(max_troops), troops + production_rate * prod_mult * delta)
 
-	if has_portal():
-		_portal_angle = fmod(_portal_angle + delta * 1.8, TAU)
+	var portal_active: bool = has_portal()
+	if portal_ring_sprite:
+		portal_ring_sprite.visible = portal_active
+	if portal_active:
+		_portal_angle = fmod(_portal_angle + delta * 1.4, TAU)
+		if portal_ring_sprite:
+			portal_ring_sprite.rotation = _portal_angle
+			var ring_scale: float = 0.56 if is_boss_node else 0.46
+			portal_ring_sprite.scale = Vector2(ring_scale, ring_scale)
+		needs_redraw = true
+
+	if is_selected or is_hovered_target or is_valid_target:
+		_reticle_angle = fmod(_reticle_angle + delta * (1.8 if is_selected else -1.2), TAU)
+		_target_pulse = fmod(_target_pulse + delta * 6.0, TAU)
+		if reticle_sprite and reticle_sprite.visible:
+			reticle_sprite.rotation = _reticle_angle
+			var base_s: float = 0.64 if is_boss_node else 0.54
+			var pulse_s: float = base_s + (0.03 * sin(_target_pulse) if is_hovered_target or is_selected else 0.0)
+			reticle_sprite.scale = Vector2(pulse_s, pulse_s)
 		needs_redraw = true
 
 	if is_boss_node:
@@ -143,37 +181,23 @@ func _process(delta: float) -> void:
 
 func _draw() -> void:
 	var rad: float = get_visual_radius()
-	var fill_color: Color = _get_fill_color()
 	var rim_color: Color = _get_rim_color()
+	var core_center := Vector2(0.0, -5.0)
 
-	# Soft ambient shadow behind node
-	draw_circle(Vector2(0.0, 4.0), rad + 3.0, Color(0.0, 0.0, 0.0, 0.38))
-
-	# Boss outer spiked energy crown & charging telegraph
+	# Boss outer energy crown & charging telegraph
 	if is_boss_node:
-		draw_circle(Vector2.ZERO, rad + 14.0, Color(0.55, 0.1, 0.35, 0.20))
 		var spike_count: int = 8
 		for i in range(spike_count):
 			var ang: float = _boss_angle + float(i) * TAU / float(spike_count)
 			var perp: Vector2 = Vector2.from_angle(ang + PI * 0.5)
-			var base_center: Vector2 = Vector2.from_angle(ang) * (rad + 2.0)
-			var tip: Vector2 = Vector2.from_angle(ang) * (rad + 16.0)
+			var base_center: Vector2 = Vector2.from_angle(ang) * (rad + 4.0)
+			var tip: Vector2 = Vector2.from_angle(ang) * (rad + 18.0)
 			var col: Color = COLOR_BOSS_CRIMSON if (i % 2 == 0) else COLOR_BOSS_PURPLE
-			draw_colored_polygon(PackedVector2Array([tip, base_center + perp * 6.5, base_center - perp * 6.5]), col)
-		draw_arc(Vector2.ZERO, rad + 6.0, 0.0, TAU, 48, Color(1.0, 0.35, 0.55, 0.8), 2.5, true)
+			draw_colored_polygon(PackedVector2Array([tip, base_center + perp * 5.5, base_center - perp * 5.5]), col)
 
 		if is_boss_charging:
 			var warn_alpha: float = 0.5 + 0.5 * sin(_boss_charge_pulse)
-			draw_arc(Vector2.ZERO, rad + 22.0, 0.0, TAU, 56, Color(1.0, 0.25, 0.25, warn_alpha), 4.5, true)
-
-	# Rotating portal halo if this node hosts a Portal
-	if has_portal():
-		var portal_radius: float = rad + 11.0
-		draw_circle(Vector2.ZERO, portal_radius + 3.0, Color(0.45, 0.2, 0.65, 0.16))
-		draw_arc(Vector2.ZERO, portal_radius, _portal_angle, _portal_angle + PI * 0.68, 24, COLOR_PORTAL_ORCHID, 3.0, true)
-		draw_arc(Vector2.ZERO, portal_radius, _portal_angle + PI, _portal_angle + PI * 1.68, 24, COLOR_PORTAL_CYAN, 3.0, true)
-		draw_circle(Vector2.from_angle(_portal_angle) * portal_radius, 3.5, COLOR_PORTAL_ORCHID)
-		draw_circle(Vector2.from_angle(_portal_angle + PI) * portal_radius, 3.5, COLOR_PORTAL_CYAN)
+			draw_arc(Vector2.ZERO, rad + 22.0, 0.0, TAU, 56, Color(1.0, 0.25, 0.30, warn_alpha), 4.5, true)
 
 	# Active creature buff glow ring for PLAYER nodes
 	if _is_player_buff_active():
@@ -181,46 +205,40 @@ func _draw() -> void:
 		var glow_col: Color = creature["color"]
 		var border_col: Color = creature["border_color"]
 		var pulse_alpha: float = 0.55 + 0.35 * sin(_buff_pulse)
-		draw_circle(Vector2.ZERO, rad + 8.0, Color(glow_col.r, glow_col.g, glow_col.b, 0.18 * pulse_alpha))
-		draw_arc(Vector2.ZERO, rad + 4.0, 0.0, TAU, 48, Color(border_col.r, border_col.g, border_col.b, pulse_alpha), 3.0, true)
+		draw_circle(core_center, rad * 0.65, Color(glow_col.r, glow_col.g, glow_col.b, 0.16 * pulse_alpha))
+		draw_arc(core_center, rad + 3.0, 0.0, TAU, 48, Color(border_col.r, border_col.g, border_col.b, pulse_alpha), 3.0, true)
 
-	# Selection / target highlight rings
+	# Selection / target highlight rings around the citadel core
 	if is_selected:
-		draw_circle(Vector2.ZERO, rad + 10.0, Color(1.0, 0.92, 0.55, 0.22))
-		draw_arc(Vector2.ZERO, rad + 6.5, 0.0, TAU, 48, COLOR_SELECTED_GLOW, 3.5, true)
+		var sel_alpha: float = 0.8 + 0.2 * sin(_target_pulse)
+		draw_arc(Vector2.ZERO, rad + 6.0, 0.0, TAU, 48, Color(COLOR_SELECTED_GLOW.r, COLOR_SELECTED_GLOW.g, COLOR_SELECTED_GLOW.b, sel_alpha), 3.5, true)
 	elif is_hovered_target:
-		draw_circle(Vector2.ZERO, rad + 10.0, Color(0.33, 0.94, 0.77, 0.24))
-		draw_arc(Vector2.ZERO, rad + 6.5, 0.0, TAU, 48, COLOR_HOVERED_TARGET, 3.5, true)
+		var hov_alpha: float = 0.85 + 0.15 * sin(_target_pulse)
+		draw_arc(Vector2.ZERO, rad + 7.0, 0.0, TAU, 48, Color(COLOR_HOVERED_TARGET.r, COLOR_HOVERED_TARGET.g, COLOR_HOVERED_TARGET.b, hov_alpha), 3.5, true)
+		draw_arc(Vector2.ZERO, rad + 2.5, 0.0, TAU, 40, COLOR_VALID_TARGET, 2.5, true)
 	elif is_valid_target:
-		draw_arc(Vector2.ZERO, rad + 5.5, 0.0, TAU, 48, COLOR_VALID_TARGET, 2.5, true)
+		var tgt_alpha: float = 0.55 + 0.30 * sin(_target_pulse)
+		draw_arc(Vector2.ZERO, rad + 4.5, 0.0, TAU, 44, Color(COLOR_VALID_TARGET.r, COLOR_VALID_TARGET.g, COLOR_VALID_TARGET.b, tgt_alpha), 2.5, true)
 	elif _is_mouse_over and faction == Faction.PLAYER:
-		draw_arc(Vector2.ZERO, rad + 5.0, 0.0, TAU, 48, Color(1.0, 1.0, 1.0, 0.4), 2.0, true)
+		draw_arc(Vector2.ZERO, rad + 4.0, 0.0, TAU, 40, Color(1.0, 1.0, 1.0, 0.45), 2.0, true)
 
-	# Main node body
-	draw_circle(Vector2.ZERO, rad, fill_color)
-
-	# Subtle inner core shading
-	draw_circle(Vector2(0.0, -6.0), rad * 0.72, Color(1.0, 1.0, 1.0, 0.08))
-
-	# Outer rim
-	draw_arc(Vector2.ZERO, rad, 0.0, TAU, 48, rim_color, 3.5 if is_boss_node else 3.0, true)
-
-	# Capacity progress arc
+	# Capacity progress arc around the inner central medallion
 	if max_troops > 0:
 		var fill_ratio: float = clampf(troops / float(max_troops), 0.0, 1.0)
 		if fill_ratio > 0.01:
+			var arc_r: float = rad * (0.50 if is_boss_node else 0.56)
 			var start_angle: float = -PI * 0.5
 			var end_angle: float = start_angle + TAU * fill_ratio
-			draw_arc(Vector2.ZERO, rad - 5.0, start_angle, end_angle, 40, Color(1.0, 1.0, 1.0, 0.38), 2.5, true)
+			draw_arc(core_center, arc_r, start_angle, end_angle, 36, Color(rim_color.r, rim_color.g, rim_color.b, 0.82), 3.0, true)
 
 	# Impact white flash when hit by hostile army
 	if _impact_flash > 0.01:
-		draw_circle(Vector2.ZERO, rad, Color(1.0, 1.0, 1.0, _impact_flash * 0.55))
+		draw_circle(core_center, rad * 0.78, Color(1.0, 1.0, 1.0, _impact_flash * 0.60))
 
 	# Skill / Capture expanding shockwave ripple
 	if _burst_progress < 1.0:
-		var ripple_r: float = rad + _burst_progress * 38.0
-		var ripple_alpha: float = (1.0 - _burst_progress) * 0.9
+		var ripple_r: float = rad + _burst_progress * 40.0
+		var ripple_alpha: float = (1.0 - _burst_progress) * 0.92
 		draw_arc(Vector2.ZERO, ripple_r, 0.0, TAU, 48, Color(_burst_color.r, _burst_color.g, _burst_color.b, ripple_alpha), 4.0, true)
 
 
@@ -247,7 +265,7 @@ func extract_troops(ratio: float) -> int:
 		amount = 1
 	amount = mini(amount, available)
 	troops -= float(amount)
-	play_pulse(0.9)
+	play_pulse(0.92)
 	return amount
 
 
@@ -358,6 +376,16 @@ func play_pulse(peak_scale: float = 1.15) -> void:
 	_pulse_tween.tween_property(self, "scale", Vector2.ONE, 0.14).set_ease(Tween.EASE_IN_OUT)
 
 
+func _kill_all_tweens() -> void:
+	for tw in [_pulse_tween, _burst_tween, _flash_tween, _label_tween]:
+		if tw != null and tw.is_valid():
+			tw.kill()
+	_pulse_tween = null
+	_burst_tween = null
+	_flash_tween = null
+	_label_tween = null
+
+
 func _apply_boss_state() -> void:
 	if is_boss_node:
 		production_rate = BOSS_PRODUCTION_RATE
@@ -376,6 +404,7 @@ func _apply_boss_state() -> void:
 	if boss_label:
 		boss_label.visible = is_boss_node
 
+	_refresh_island_sprite()
 	queue_redraw()
 
 
@@ -386,7 +415,43 @@ func _is_player_buff_active() -> bool:
 func _refresh_visuals() -> void:
 	_update_effective_max_troops()
 	_update_troop_label()
+	_refresh_island_sprite()
 	queue_redraw()
+
+
+func _refresh_island_sprite() -> void:
+	if island_sprite == null:
+		return
+	if is_boss_node:
+		island_sprite.texture = tex_boss if tex_boss != null else tex_enemy
+		island_sprite.scale = ISLAND_SCALE_BOSS
+		island_sprite.position = Vector2(0.0, 2.0)
+	else:
+		island_sprite.scale = ISLAND_SCALE_NORMAL
+		island_sprite.position = Vector2(0.0, 2.0)
+		match faction:
+			Faction.PLAYER:
+				island_sprite.texture = tex_player
+			Faction.ENEMY:
+				island_sprite.texture = tex_enemy
+			_:
+				island_sprite.texture = tex_neutral
+
+
+func _refresh_selection_visuals() -> void:
+	if reticle_sprite == null:
+		return
+	if is_selected:
+		reticle_sprite.visible = true
+		reticle_sprite.modulate = COLOR_SELECTED_GLOW
+	elif is_hovered_target:
+		reticle_sprite.visible = true
+		reticle_sprite.modulate = Color(0.55, 1.0, 0.88, 1.0)
+	elif is_valid_target:
+		reticle_sprite.visible = true
+		reticle_sprite.modulate = Color(0.35, 0.92, 0.78, 0.65)
+	else:
+		reticle_sprite.visible = false
 
 
 func _update_effective_max_troops() -> void:
@@ -399,16 +464,6 @@ func _update_effective_max_troops() -> void:
 func _update_troop_label() -> void:
 	if troop_label:
 		troop_label.text = str(floori(troops))
-
-
-func _get_fill_color() -> Color:
-	match faction:
-		Faction.PLAYER:
-			return COLOR_PLAYER_FILL
-		Faction.ENEMY:
-			return COLOR_ENEMY_FILL
-		_:
-			return COLOR_NEUTRAL_FILL
 
 
 func _get_rim_color() -> Color:

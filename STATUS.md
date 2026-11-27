@@ -4,7 +4,7 @@
 **Target Platform:** Android (`720x1280` portrait, `canvas_items` / `expand`, `import_etc2_astc=true`, one-handed touch)  
 **Main Scene:** `res://scenes/MainHubScene.tscn`  
 **Autoloads:** `SaveManager` (`res://scripts/save_manager.gd`), `AudioManager` (`res://scripts/audio_manager.gd`)  
-**Current Milestone:** P3 Part 2 (Task 3: First-Match Interactive Tutorial Hints Completed; Next: Player Profile & Statistics Dialog) (`8c4f406`+)
+**Current Milestone:** ART P1 (Battle Map Visual Upgrade Completed; Next: P3 Part 2 Task 4 — Player Profile & Statistics Dialog) (`fce7c48`+)
 
 ---
 
@@ -46,6 +46,13 @@
 - **Procedural SFX (`AudioManager`)**: 9 in-memory 16-bit `AudioStreamWAV` sounds (`select`, `send`, `capture`, `lost`, `portal`, `skill`, `victory`, `defeat`, `boss_skill`), 8-player pool with anti-spam throttling, and persisted `SFX: ON/OFF` toggle.
 - **Android Build CI**: `export_presets.cfg` (`com.bohoa.noderealms`, `arm64-v8a` + `armeabi-v7a`) and `.github/workflows/build-android.yml` (Ubuntu + JDK 17 + Android SDK 34 + Godot `4.3-stable` headless -> `NodeRealms-debug.apk`, plus conditional `NodeRealms-release.aab` when Release Keystore Secrets are configured).
 
+### ART P1 - Battle Map Visual Upgrade (Fantasy 2.5D / Floating Kingdoms)
+- **Battle Backdrop & Atmosphere:** Painterly `720x1280` Floating Kingdoms twilight emerald-teal backdrop (`battle_backdrop.png`) with `backdrop_mist.gdshader` vignette/mist shimmer and lightweight `14`-particle `AmbientMotes` (`CPUParticles2D`).
+- **2.5D Citadel & Sanctuary Islands (`BaseNode`):** Replaced flat circles with layered floating island sprites (`base_island_neutral.png`, `base_island_player.png`, `base_island_enemy.png`, `base_island_boss.png`) while preserving `42 px` / `56 px` hitboxes, capacity arc, troop label legibility, and Boss crown/telegraph.
+- **Vanguard Units (`ArmyGroup`):** Added directional winged shield-crest vanguard sprites (`army_vanguard_player.png`, `army_vanguard_enemy.png`, `army_vanguard_neutral.png`) with march stride animation and upright `TroopLabel`, preserving `FIRE` buff and `1.8x` Portal warp trails.
+- **Stone Causeways & Arcane Portals:** Upgraded `PathsLayer` to 3-layer stone causeways (drop shadow, seamless tiled `path_stone_tile.png`, and GPU-animated `leyline_flow.gdshader` energy thread) and `PortalsLayer` to glowing arcane conduits + rotating `portal_ring.png` base halos.
+- **Selection & Dispatch Feedback:** Added rotating golden `selection_reticle.png` targeting brackets, pulsing target rings, and `DragLineGlow` + directional `DragArrow` indicator.
+
 ---
 
 ## 2. Core File Inventory
@@ -66,6 +73,7 @@
 | `scripts/save_manager.gd` | JSON save/load (`user://node_realms_save.json`) with backward compatibility |
 | `scripts/audio_manager.gd` | Procedural `AudioStreamWAV` synthesizer and 8-channel SFX mixer |
 | `scenes/CampaignScene.tscn`, `scripts/campaign_scene.gd` | Legacy P2.2 standalone campaign scene (superseded by `MainHubScene.tscn`) |
+| `assets/art/battle/*.png`, `assets/art/shaders/*.gdshader`, `assets/art/ASSET_LICENSES.md` | Original 2.5D battle textures, GPU shaders, and license inventory |
 
 ---
 

@@ -1,25 +1,37 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=6 format=3]
 
 [ext_resource type="Script" path="res://scripts/army_group.gd" id="1_army_group"]
+[ext_resource type="Texture2D" path="res://assets/art/battle/army_vanguard_player.png" id="2_tex_player"]
+[ext_resource type="Texture2D" path="res://assets/art/battle/army_vanguard_enemy.png" id="3_tex_enemy"]
+[ext_resource type="Texture2D" path="res://assets/art/battle/army_vanguard_neutral.png" id="4_tex_neutral"]
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_army"]
 radius = 16.0
 
 [node name="ArmyGroup" type="Area2D"]
 script = ExtResource("1_army_group")
+tex_player = ExtResource("2_tex_player")
+tex_enemy = ExtResource("3_tex_enemy")
+tex_neutral = ExtResource("4_tex_neutral")
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
 shape = SubResource("CircleShape2D_army")
 
+[node name="VanguardSprite" type="Sprite2D" parent="."]
+z_index = -1
+scale = Vector2(0.44, 0.44)
+texture = ExtResource("2_tex_player")
+
 [node name="TroopLabel" type="Label" parent="."]
+z_index = 2
 offset_left = -24.0
 offset_top = -14.0
 offset_right = 24.0
 offset_bottom = 14.0
 theme_override_colors/font_color = Color(1, 1, 1, 1)
-theme_override_colors/font_outline_color = Color(0.05, 0.07, 0.1, 0.95)
+theme_override_colors/font_outline_color = Color(0.04, 0.06, 0.1, 0.98)
 theme_override_constants/outline_size = 4
-theme_override_font_sizes/font_size = 16
+theme_override_font_sizes/font_size = 15
 text = "10"
 horizontal_alignment = 1
 vertical_alignment = 1

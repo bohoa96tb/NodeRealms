@@ -1,23 +1,52 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=9 format=3]
 
 [ext_resource type="Script" path="res://scripts/base_node.gd" id="1_base_node"]
+[ext_resource type="Texture2D" path="res://assets/art/battle/base_island_neutral.png" id="2_tex_neutral"]
+[ext_resource type="Texture2D" path="res://assets/art/battle/base_island_player.png" id="3_tex_player"]
+[ext_resource type="Texture2D" path="res://assets/art/battle/base_island_enemy.png" id="4_tex_enemy"]
+[ext_resource type="Texture2D" path="res://assets/art/battle/base_island_boss.png" id="5_tex_boss"]
+[ext_resource type="Texture2D" path="res://assets/art/battle/portal_ring.png" id="6_tex_portal"]
+[ext_resource type="Texture2D" path="res://assets/art/battle/selection_reticle.png" id="7_tex_reticle"]
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_base"]
 radius = 44.0
 
 [node name="BaseNode" type="Area2D"]
 script = ExtResource("1_base_node")
+tex_neutral = ExtResource("2_tex_neutral")
+tex_player = ExtResource("3_tex_player")
+tex_enemy = ExtResource("4_tex_enemy")
+tex_boss = ExtResource("5_tex_boss")
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
 shape = SubResource("CircleShape2D_base")
 
+[node name="PortalRingSprite" type="Sprite2D" parent="."]
+visible = false
+z_index = -2
+scale = Vector2(0.46, 0.46)
+texture = ExtResource("6_tex_portal")
+
+[node name="ReticleSprite" type="Sprite2D" parent="."]
+visible = false
+z_index = -2
+scale = Vector2(0.54, 0.54)
+texture = ExtResource("7_tex_reticle")
+
+[node name="IslandSprite" type="Sprite2D" parent="."]
+z_index = -1
+position = Vector2(0, 2)
+scale = Vector2(0.64, 0.64)
+texture = ExtResource("2_tex_neutral")
+
 [node name="TroopLabel" type="Label" parent="."]
+z_index = 2
 offset_left = -36.0
-offset_top = -18.0
+offset_top = -23.0
 offset_right = 36.0
-offset_bottom = 18.0
+offset_bottom = 13.0
 theme_override_colors/font_color = Color(1, 1, 1, 1)
-theme_override_colors/font_outline_color = Color(0.05, 0.07, 0.1, 0.95)
+theme_override_colors/font_outline_color = Color(0.04, 0.06, 0.1, 0.98)
 theme_override_constants/outline_size = 5
 theme_override_font_sizes/font_size = 24
 text = "10"
@@ -26,11 +55,12 @@ vertical_alignment = 1
 
 [node name="BossLabel" type="Label" parent="."]
 visible = false
+z_index = 2
 offset_left = -44.0
-offset_top = -84.0
+offset_top = -114.0
 offset_right = 44.0
-offset_bottom = -60.0
-theme_override_colors/font_color = Color(1, 0.42, 0.56, 1)
+offset_bottom = -92.0
+theme_override_colors/font_color = Color(1, 0.45, 0.6, 1)
 theme_override_colors/font_outline_color = Color(0.08, 0.02, 0.06, 0.98)
 theme_override_constants/outline_size = 5
 theme_override_font_sizes/font_size = 15
